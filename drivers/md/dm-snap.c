@@ -1792,6 +1792,8 @@ static int snapshot_map(struct dm_target *ti, struct bio *bio)
 			; /* wait_for_in_progress() has slept */
 	}
 
+	/* FIXME: should only take write lock if we need
+	 * to copy an exception */
 	mutex_lock(&s->lock);
 
 	if (!s->valid || (unlikely(s->snapshot_overflowed) &&
