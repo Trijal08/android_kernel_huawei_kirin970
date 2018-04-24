@@ -578,7 +578,12 @@ static void handle_tx(struct vhost_net *net)
 		else
 			vhost_zerocopy_signal_used(net, vq);
 		vhost_net_tx_packet(net);
-	} while (likely(!vhost_exceeds_weight(vq, ++sent_pkts, total_len)));
+		if (unlikely(total_len >= VHOST_NET_WEIGHT) ||
+		    unlikely(++sent_pkts >= VHOST_NET_PKT_WEIGHT)) {
+			vhost_poll_queue(&vq->poll);
+			break;
+		}
+	}
 out:
 	mutex_unlock(&vq->mutex);
 }
@@ -861,8 +866,12 @@ static void handle_rx(struct vhost_net *net)
 			vhost_log_write(vq, vq_log, log, vhost_len,
 					vq->iov, in);
 		total_len += vhost_len;
-	} while (likely(!vhost_exceeds_weight(vq, ++recv_pkts, total_len)));
-
+		if (unlikely(total_len >= VHOST_NET_WEIGHT) ||
+		    unlikely(++recv_pkts >= VHOST_NET_PKT_WEIGHT)) {
+			vhost_poll_queue(&vq->poll);
+			goto out;
+		}
+	}
 	vhost_net_enable_vq(net, vq);
 out:
 	mutex_unlock(&vq->mutex);
