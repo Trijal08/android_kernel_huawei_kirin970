@@ -143,15 +143,12 @@ enum tmc_mem_intf_width {
 
 enum etr_mode {
 	ETR_MODE_FLAT,		/* Uses contiguous flat buffer */
-	ETR_MODE_ETR_SG,	/* Uses in-built TMC ETR SG mechanism */
-	ETR_MODE_CATU,		/* Use SG mechanism in CATU */
 };
 
 struct etr_buf_operations;
 
 /**
  * struct etr_buf - Details of the buffer used by ETR
- * refcount	; Number of sources currently using this etr_buf.
  * @mode	: Mode of the ETR buffer, contiguous, Scatter Gather etc.
  * @full	: Trace data overflow
  * @size	: Size of the buffer.
@@ -162,7 +159,6 @@ struct etr_buf_operations;
  * @private	: Backend specific information for the buf
  */
 struct etr_buf {
-	refcount_t			refcount;
 	enum etr_mode			mode;
 	bool				full;
 	ssize_t				size;
@@ -180,8 +176,6 @@ struct etr_buf {
  * @csdev:	component vitals needed by the framework.
  * @miscdev:	specifics to handle "/dev/xyz.tmc" entry.
  * @spinlock:	only one at a time pls.
- * @pid:	Process ID of the process being monitored by the session
- *		that is using this component.
  * @buf:	Snapshot of the trace data for ETF/ETB.
  * @etr_buf:	details of buffer used in TMC-ETR
  * @len:	size of the available trace for ETF/ETB.
@@ -220,6 +214,15 @@ struct tmc_drvdata {
 	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
 	struct etr_buf		*perf_buf;
+};
+
+struct etr_buf_operations {
+	int (*alloc)(struct tmc_drvdata *drvdata, struct etr_buf *etr_buf,
+		     int node, void **pages);
+	void (*sync)(struct etr_buf *etr_buf, u64 rrp, u64 rwp);
+	ssize_t (*get_data)(struct etr_buf *etr_buf, u64 offset, size_t len,
+			    char **bufpp);
+	void (*free)(struct etr_buf *etr_buf);
 };
 
 struct etr_buf_operations {

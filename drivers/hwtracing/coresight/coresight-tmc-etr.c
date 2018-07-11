@@ -19,9 +19,6 @@
 #include <linux/coresight.h>
 #include <linux/dma-mapping.h>
 #include <linux/iommu.h>
-#include <linux/idr.h>
-#include <linux/mutex.h>
-#include <linux/refcount.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/vmalloc.h>
@@ -36,32 +33,6 @@ struct etr_flat_buf {
 	void		*vaddr;
 	size_t		size;
 };
-
-/*
- * etr_perf_buffer - Perf buffer used for ETR
- * @drvdata		- The ETR drvdaga this buffer has been allocated for.
- * @etr_buf		- Actual buffer used by the ETR
- * @pid			- The PID this etr_perf_buffer belongs to.
- * @snaphost		- Perf session mode
- * @head		- handle->head at the beginning of the session.
- * @nr_pages		- Number of pages in the ring buffer.
- * @pages		- Array of Pages in the ring buffer.
- */
-struct etr_perf_buffer {
-	struct tmc_drvdata	*drvdata;
-	struct etr_buf		*etr_buf;
-	pid_t			pid;
-	bool			snapshot;
-	unsigned long		head;
-	int			nr_pages;
-	void			**pages;
-};
-
-/* Convert the perf index to an offset within the ETR buffer */
-#define PERF_IDX2OFF(idx, buf)	((idx) % ((buf)->nr_pages << PAGE_SHIFT))
-
-/* Lower limit for ETR hardware buffer */
-#define TMC_ETR_PERF_MIN_BUF_SIZE	SZ_1M
 
 /*
  * The TMC ETR SG has a page size of 4K. The SG table contains pointers
@@ -668,132 +639,8 @@ static const struct etr_buf_operations etr_flat_buf_ops = {
 	.get_data = tmc_etr_get_data_flat_buf,
 };
 
-/*
- * tmc_etr_alloc_sg_buf: Allocate an SG buf @etr_buf. Setup the parameters
- * appropriately.
- */
-static int tmc_etr_alloc_sg_buf(struct tmc_drvdata *drvdata,
-				struct etr_buf *etr_buf, int node,
-				void **pages)
-{
-	struct etr_sg_table *etr_table;
-
-	etr_table = tmc_init_etr_sg_table(drvdata->dev, node,
-					  etr_buf->size, pages);
-	if (IS_ERR(etr_table))
-		return -ENOMEM;
-	etr_buf->hwaddr = etr_table->hwaddr;
-	etr_buf->mode = ETR_MODE_ETR_SG;
-	etr_buf->private = etr_table;
-	return 0;
-}
-
-static void tmc_etr_free_sg_buf(struct etr_buf *etr_buf)
-{
-	struct etr_sg_table *etr_table = etr_buf->private;
-
-	if (etr_table) {
-		tmc_free_sg_table(etr_table->sg_table);
-		kfree(etr_table);
-	}
-}
-
-static ssize_t tmc_etr_get_data_sg_buf(struct etr_buf *etr_buf, u64 offset,
-				       size_t len, char **bufpp)
-{
-	struct etr_sg_table *etr_table = etr_buf->private;
-
-	return tmc_sg_table_get_data(etr_table->sg_table, offset, len, bufpp);
-}
-
-static void tmc_etr_sync_sg_buf(struct etr_buf *etr_buf, u64 rrp, u64 rwp)
-{
-	long r_offset, w_offset;
-	struct etr_sg_table *etr_table = etr_buf->private;
-	struct tmc_sg_table *table = etr_table->sg_table;
-
-	/* Convert hw address to offset in the buffer */
-	r_offset = tmc_sg_get_data_page_offset(table, rrp);
-	if (r_offset < 0) {
-		dev_warn(table->dev,
-			 "Unable to map RRP %llx to offset\n", rrp);
-		etr_buf->len = 0;
-		return;
-	}
-
-	w_offset = tmc_sg_get_data_page_offset(table, rwp);
-	if (w_offset < 0) {
-		dev_warn(table->dev,
-			 "Unable to map RWP %llx to offset\n", rwp);
-		etr_buf->len = 0;
-		return;
-	}
-
-	etr_buf->offset = r_offset;
-	if (etr_buf->full)
-		etr_buf->len = etr_buf->size;
-	else
-		etr_buf->len = ((w_offset < r_offset) ? etr_buf->size : 0) +
-				w_offset - r_offset;
-	tmc_sg_table_sync_data_range(table, r_offset, etr_buf->len);
-}
-
-static const struct etr_buf_operations etr_sg_buf_ops = {
-	.alloc = tmc_etr_alloc_sg_buf,
-	.free = tmc_etr_free_sg_buf,
-	.sync = tmc_etr_sync_sg_buf,
-	.get_data = tmc_etr_get_data_sg_buf,
-};
-
-/*
- * TMC ETR could be connected to a CATU device, which can provide address
- * translation service. This is represented by the Output port of the TMC
- * (ETR) connected to the input port of the CATU.
- *
- * Returns	: coresight_device ptr for the CATU device if a CATU is found.
- *		: NULL otherwise.
- */
-struct coresight_device *
-tmc_etr_get_catu_device(struct tmc_drvdata *drvdata)
-{
-	int i;
-	struct coresight_device *tmp, *etr = drvdata->csdev;
-
-	if (!IS_ENABLED(CONFIG_CORESIGHT_CATU))
-		return NULL;
-
-	for (i = 0; i < etr->nr_outport; i++) {
-		tmp = etr->conns[i].child_dev;
-		if (tmp && coresight_is_catu_device(tmp))
-			return tmp;
-	}
-
-	return NULL;
-}
-
-static inline int tmc_etr_enable_catu(struct tmc_drvdata *drvdata,
-				      struct etr_buf *etr_buf)
-{
-	struct coresight_device *catu = tmc_etr_get_catu_device(drvdata);
-
-	if (catu && helper_ops(catu)->enable)
-		return helper_ops(catu)->enable(catu, etr_buf);
-	return 0;
-}
-
-static inline void tmc_etr_disable_catu(struct tmc_drvdata *drvdata)
-{
-	struct coresight_device *catu = tmc_etr_get_catu_device(drvdata);
-
-	if (catu && helper_ops(catu)->disable)
-		helper_ops(catu)->disable(catu, drvdata->etr_buf);
-}
-
 static const struct etr_buf_operations *etr_buf_ops[] = {
 	[ETR_MODE_FLAT] = &etr_flat_buf_ops,
-	[ETR_MODE_ETR_SG] = &etr_sg_buf_ops,
-	[ETR_MODE_CATU] = IS_ENABLED(CONFIG_CORESIGHT_CATU)
-						? &etr_catu_buf_ops : NULL,
 };
 
 static inline int tmc_etr_mode_alloc_buf(int mode,
@@ -801,15 +648,11 @@ static inline int tmc_etr_mode_alloc_buf(int mode,
 					 struct etr_buf *etr_buf, int node,
 					 void **pages)
 {
-	int rc = -EINVAL;
+	int rc;
 
 	switch (mode) {
 	case ETR_MODE_FLAT:
-	case ETR_MODE_ETR_SG:
-	case ETR_MODE_CATU:
-		if (etr_buf_ops[mode] && etr_buf_ops[mode]->alloc)
-			rc = etr_buf_ops[mode]->alloc(drvdata, etr_buf,
-						      node, pages);
+		rc = etr_buf_ops[mode]->alloc(drvdata, etr_buf, node, pages);
 		if (!rc)
 			etr_buf->ops = etr_buf_ops[mode];
 		return rc;
@@ -830,16 +673,8 @@ static struct etr_buf *tmc_alloc_etr_buf(struct tmc_drvdata *drvdata,
 					 ssize_t size, int flags,
 					 int node, void **pages)
 {
-	int rc = -ENOMEM;
-	bool has_etr_sg, has_iommu;
-	bool has_sg, has_catu;
+	int rc = 0;
 	struct etr_buf *etr_buf;
-
-	has_etr_sg = tmc_etr_has_cap(drvdata, TMC_ETR_SG);
-	has_iommu = iommu_get_domain_for_dev(drvdata->dev);
-	has_catu = !!tmc_etr_get_catu_device(drvdata);
-
-	has_sg = has_catu || has_etr_sg;
 
 	etr_buf = kzalloc(sizeof(*etr_buf), GFP_KERNEL);
 	if (!etr_buf)
@@ -847,36 +682,13 @@ static struct etr_buf *tmc_alloc_etr_buf(struct tmc_drvdata *drvdata,
 
 	etr_buf->size = size;
 
-	/*
-	 * If we have to use an existing list of pages, we cannot reliably
-	 * use a contiguous DMA memory (even if we have an IOMMU). Otherwise,
-	 * we use the contiguous DMA memory if at least one of the following
-	 * conditions is true:
-	 *  a) The ETR cannot use Scatter-Gather.
-	 *  b) we have a backing IOMMU
-	 *  c) The requested memory size is smaller (< 1M).
-	 *
-	 * Fallback to available mechanisms.
-	 *
-	 */
-	if (!pages &&
-	    (!has_sg || has_iommu || size < SZ_1M))
-		rc = tmc_etr_mode_alloc_buf(ETR_MODE_FLAT, drvdata,
-					    etr_buf, node, pages);
-	if (rc && has_etr_sg)
-		rc = tmc_etr_mode_alloc_buf(ETR_MODE_ETR_SG, drvdata,
-					    etr_buf, node, pages);
-	if (rc && has_catu)
-		rc = tmc_etr_mode_alloc_buf(ETR_MODE_CATU, drvdata,
-					    etr_buf, node, pages);
+	rc = tmc_etr_mode_alloc_buf(ETR_MODE_FLAT, drvdata,
+				    etr_buf, node, pages);
 	if (rc) {
 		kfree(etr_buf);
 		return ERR_PTR(rc);
 	}
 
-	refcount_set(&etr_buf->refcount, 1);
-	dev_dbg(drvdata->dev, "allocated buffer of size %ldKB in mode %d\n",
-		(unsigned long)size >> 10, etr_buf->mode);
 	return etr_buf;
 }
 
@@ -910,7 +722,7 @@ tmc_etr_buf_insert_barrier_packet(struct etr_buf *etr_buf, u64 offset)
 
 	len = tmc_etr_buf_get_data(etr_buf, offset,
 				   CORESIGHT_BARRIER_PKT_SIZE, &bufp);
-	if (WARN_ON(len < CORESIGHT_BARRIER_PKT_SIZE))
+	if (WARN_ON(len <= CORESIGHT_BARRIER_PKT_SIZE))
 		return -EINVAL;
 	coresight_insert_barrier_packet(bufp);
 	return offset + CORESIGHT_BARRIER_PKT_SIZE;
@@ -931,27 +743,18 @@ static void tmc_sync_etr_buf(struct tmc_drvdata *drvdata)
 	rrp = tmc_read_rrp(drvdata);
 	rwp = tmc_read_rwp(drvdata);
 	status = readl_relaxed(drvdata->base + TMC_STS);
-
-	/*
-	 * If there were memory errors in the session, truncate the
-	 * buffer.
-	 */
-	if (WARN_ON_ONCE(status & TMC_STS_MEMERR)) {
-		dev_dbg(&drvdata->csdev->dev,
-			"tmc memory error detected, truncating buffer\n");
-		etr_buf->len = 0;
-		etr_buf->full = 0;
-		return;
-	}
-
 	etr_buf->full = status & TMC_STS_FULL;
 
 	WARN_ON(!etr_buf->ops || !etr_buf->ops->sync);
 
 	etr_buf->ops->sync(etr_buf, rrp, rwp);
+
+	/* Insert barrier packets at the beginning, if there was an overflow */
+	if (etr_buf->full)
+		tmc_etr_buf_insert_barrier_packet(etr_buf, etr_buf->offset);
 }
 
-static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
+static void tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 {
 	u32 axictl, sts;
 	struct etr_buf *etr_buf = drvdata->etr_buf;
@@ -1002,86 +805,18 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 }
 
 /*
- * Return the available trace data in the buffer @pos, with a maximum
- * limit of @len, also updating the @bufpp on where to find it.
- */
-ssize_t tmc_etr_get_sysfs_trace(struct tmc_drvdata *drvdata,
-				loff_t pos, size_t len, char **bufpp)
-{
-	ssize_t actual = len;
-	char *bufp = drvdata->buf + pos;
-	char *bufend = (char *)(drvdata->vaddr + drvdata->size);
-
-	/* Adjust the len to available size @pos */
-	if (pos + actual > drvdata->len)
-		actual = drvdata->len - pos;
-
-	if (actual <= 0)
-		return actual;
-
-	/*
-	 * Since we use a circular buffer, with trace data starting
-	 * @drvdata->buf, possibly anywhere in the buffer @drvdata->vaddr,
-	 * wrap the current @pos to within the buffer.
-	 */
-	if (bufp >= bufend)
-		bufp -= drvdata->size;
-	/*
-	 * For simplicity, avoid copying over a wrapped around buffer.
-	 */
-	if ((bufp + actual) > bufend)
-		actual = bufend - bufp;
-	*bufpp = bufp;
-	return actual;
-}
-
-static void tmc_etr_dump_hw(struct tmc_drvdata *drvdata)
-{
-	int rc;
-
-	/* Callers should provide an appropriate buffer for use */
-	if (WARN_ON(!etr_buf))
-		return -EINVAL;
-
-	if ((etr_buf->mode == ETR_MODE_ETR_SG) &&
-	    WARN_ON(!tmc_etr_has_cap(drvdata, TMC_ETR_SG)))
-		return -EINVAL;
-
-	if (WARN_ON(drvdata->etr_buf))
-		return -EBUSY;
-
-	/*
-	 * If this ETR is connected to a CATU, enable it before we turn
-	 * this on.
-	 */
-	rc = tmc_etr_enable_catu(drvdata, etr_buf);
-	if (rc)
-		return rc;
-	rc = coresight_claim_device(drvdata->base);
-	if (!rc) {
-		drvdata->etr_buf = etr_buf;
-		__tmc_etr_enable_hw(drvdata);
-	}
-
-	return rc;
-}
-
-/*
  * Return the available trace data in the buffer (starts at etr_buf->offset,
  * limited by etr_buf->len) from @pos, with a maximum limit of @len,
  * also updating the @bufpp on where to find it. Since the trace data
  * starts at anywhere in the buffer, depending on the RRP, we adjust the
  * @len returned to handle buffer wrapping around.
- *
- * We are protected here by drvdata->reading != 0, which ensures the
- * sysfs_buf stays alive.
  */
 ssize_t tmc_etr_get_sysfs_trace(struct tmc_drvdata *drvdata,
 				loff_t pos, size_t len, char **bufpp)
 {
 	s64 offset;
 	ssize_t actual = len;
-	struct etr_buf *etr_buf = drvdata->sysfs_buf;
+	struct etr_buf *etr_buf = drvdata->etr_buf;
 
 	if (pos + actual > etr_buf->len)
 		actual = etr_buf->len - pos;
@@ -1111,21 +846,7 @@ tmc_etr_free_sysfs_buf(struct etr_buf *buf)
 
 static void tmc_etr_sync_sysfs_buf(struct tmc_drvdata *drvdata)
 {
-	struct etr_buf *etr_buf = drvdata->etr_buf;
-
-	if (WARN_ON(drvdata->sysfs_buf != etr_buf)) {
-		tmc_etr_free_sysfs_buf(drvdata->sysfs_buf);
-		drvdata->sysfs_buf = NULL;
-	} else {
-		tmc_sync_etr_buf(drvdata);
-		/*
-		 * Insert barrier packets at the beginning, if there was
-		 * an overflow.
-		 */
-		if (etr_buf->full)
-			tmc_etr_buf_insert_barrier_packet(etr_buf,
-							  etr_buf->offset);
-	}
+	tmc_sync_etr_buf(drvdata);
 }
 
 static void __tmc_etr_disable_hw(struct tmc_drvdata *drvdata)
@@ -1161,7 +882,7 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 	int ret = 0;
 	unsigned long flags;
 	struct tmc_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
-	struct etr_buf *sysfs_buf = NULL, *new_buf = NULL, *free_buf = NULL;
+	struct etr_buf *new_buf = NULL, *free_buf = NULL;
 
 
 	/*
@@ -1173,8 +894,7 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 	 * with the lock released.
 	 */
 	spin_lock_irqsave(&drvdata->spinlock, flags);
-	sysfs_buf = READ_ONCE(drvdata->sysfs_buf);
-	if (!sysfs_buf || (sysfs_buf->size != drvdata->size)) {
+	if (!drvdata->etr_buf || (drvdata->etr_buf->size != drvdata->size)) {
 		spin_unlock_irqrestore(&drvdata->spinlock, flags);
 
 		/* Allocate memory with the locks released */
@@ -1199,6 +919,15 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 	if (drvdata->mode == CS_MODE_SYSFS) {
 		atomic_inc(csdev->refcnt);
 		goto out;
+
+	/*
+	 * If we don't have a buffer or it doesn't match the requested size,
+	 * use the buffer allocated above. Otherwise reuse the existing buffer.
+	 */
+	if (!drvdata->etr_buf ||
+	    (new_buf && drvdata->etr_buf->size != new_buf->size)) {
+		free_buf = drvdata->etr_buf;
+		drvdata->etr_buf = new_buf;
 	}
 
 	/*
@@ -1731,7 +1460,13 @@ int tmc_read_prepare_etr(struct tmc_drvdata *drvdata)
 		goto out;
 	}
 
-	/* Disable the TMC if we are trying to read from a running session. */
+	/* If drvdata::etr_buf is NULL the trace data has been read already */
+	if (drvdata->etr_buf == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* Disable the TMC if need be */
 	if (drvdata->mode == CS_MODE_SYSFS)
 		__tmc_etr_disable_hw(drvdata);
 
@@ -1745,7 +1480,7 @@ out:
 int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata)
 {
 	unsigned long flags;
-	struct etr_buf *sysfs_buf = NULL;
+	struct etr_buf *etr_buf = NULL;
 
 	/* config types are set a boot time and never change */
 	if (WARN_ON_ONCE(drvdata->config_type != TMC_CONFIG_TYPE_ETR))
@@ -1766,16 +1501,16 @@ int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata)
 		 * The ETR is not tracing and the buffer was just read.
 		 * As such prepare to free the trace buffer.
 		 */
-		sysfs_buf = drvdata->sysfs_buf;
-		drvdata->sysfs_buf = NULL;
+		etr_buf =  drvdata->etr_buf;
+		drvdata->etr_buf = NULL;
 	}
 
 	drvdata->reading = false;
 	spin_unlock_irqrestore(&drvdata->spinlock, flags);
 
 	/* Free allocated memory out side of the spinlock */
-	if (sysfs_buf)
-		tmc_etr_free_sysfs_buf(sysfs_buf);
+	if (etr_buf)
+		tmc_free_etr_buf(etr_buf);
 
 	return 0;
 }
