@@ -534,47 +534,6 @@ struct coresight_device *coresight_get_enabled_sink(bool deactivate)
 	return dev ? to_coresight_device(dev) : NULL;
 }
 
-static int coresight_sink_by_id(struct device *dev, void *data)
-{
-	struct coresight_device *csdev = to_coresight_device(dev);
-	unsigned long hash;
-
-	if (csdev->type == CORESIGHT_DEV_TYPE_SINK ||
-	     csdev->type == CORESIGHT_DEV_TYPE_LINKSINK) {
-
-		if (!csdev->ea)
-			return 0;
-		/*
-		 * See function etm_perf_add_symlink_sink() to know where
-		 * this comes from.
-		 */
-		hash = (unsigned long)csdev->ea->var;
-
-		if ((u32)hash == *(u32 *)data)
-			return 1;
-	}
-
-	return 0;
-}
-
-/**
- * coresight_get_sink_by_id - returns the sink that matches the id
- * @id: Id of the sink to match
- *
- * The name of a sink is unique, whether it is found on the AMBA bus or
- * otherwise.  As such the hash of that name can easily be used to identify
- * a sink.
- */
-struct coresight_device *coresight_get_sink_by_id(u32 id)
-{
-	struct device *dev = NULL;
-
-	dev = bus_find_device(&coresight_bustype, NULL, &id,
-			      coresight_sink_by_id);
-
-	return dev ? to_coresight_device(dev) : NULL;
-}
-
 /*
  * coresight_grab_device - Power up this device and any of the helper
  * devices connected to it for trace operation. Since the helper devices
