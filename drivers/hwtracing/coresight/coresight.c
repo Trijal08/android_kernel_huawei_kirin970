@@ -441,7 +441,7 @@ int coresight_enable_path(struct list_head *path, u32 mode, void *sink_data)
 
 		switch (type) {
 		case CORESIGHT_DEV_TYPE_SINK:
-			ret = coresight_enable_sink(csdev, mode, sink_data);
+			ret = coresight_enable_sink(csdev, mode);
 			/*
 			 * Sink is the first component turned on. If we
 			 * failed to enable the sink, there are no components
