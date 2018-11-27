@@ -2563,6 +2563,9 @@ static int stmmac_hw_setup(struct net_device *dev, bool init_ptp)
 		for (chan = 0; chan < tx_cnt; chan++)
 			priv->hw->dma->enable_tso(priv->ioaddr, 1, chan);
 	}
+	
+	/* Start the ball rolling... */
+	stmmac_start_all_dma(priv);
 
 	/* Start the ball rolling... */
 	stmmac_start_all_dma(priv);
