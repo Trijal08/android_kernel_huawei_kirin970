@@ -336,9 +336,8 @@ static inline void *phys_to_virt(phys_addr_t x)
 #define page_to_virt(page)	({					\
 	unsigned long __addr =						\
 		((__page_to_voff(page)) | PAGE_OFFSET);			\
-	const void *__addr_tag =					\
-		__tag_set((void *)__addr, page_kasan_tag(page));	\
-	((void *)__addr_tag);						\
+	__addr = __tag_set(__addr, page_kasan_tag(page));		\
+	((void *)__addr);						\
 })
 
 #define virt_to_page(vaddr)	((struct page *)((__virt_to_pgoff(vaddr)) | VMEMMAP_START))
