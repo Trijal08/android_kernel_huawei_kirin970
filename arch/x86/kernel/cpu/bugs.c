@@ -24,6 +24,7 @@
 #include <asm/msr.h>
 #include <asm/vmx.h>
 #include <asm/paravirt.h>
+#include <asm/alternative.h>
 #include <asm/hypervisor.h>
 #include <asm/pgtable.h>
 #include <asm/intel-family.h>
@@ -2172,51 +2173,18 @@ static ssize_t itlb_multihit_show_state(char *buf)
 
 static ssize_t mds_show_state(char *buf)
 {
-	if (boot_cpu_has(X86_FEATURE_HYPERVISOR)) {
-		return sysfs_emit(buf, "%s; SMT Host state unknown\n",
-				  mds_strings[mds_mitigation]);
+	if (!hypervisor_is_type(X86_HYPER_NATIVE)) {
+		return sprintf(buf, "%s; SMT Host state unknown\n",
+			       mds_strings[mds_mitigation]);
 	}
 
 	if (boot_cpu_has(X86_BUG_MSBDS_ONLY)) {
-		return sysfs_emit(buf, "%s; SMT %s\n", mds_strings[mds_mitigation],
-				  (mds_mitigation == MDS_MITIGATION_OFF ? "vulnerable" :
-				   sched_smt_active() ? "mitigated" : "disabled"));
+		return sprintf(buf, "%s; SMT %s\n", mds_strings[mds_mitigation],
+			       sched_smt_active() ? "mitigated" : "disabled");
 	}
 
-	return sysfs_emit(buf, "%s; SMT %s\n", mds_strings[mds_mitigation],
-			  sched_smt_active() ? "vulnerable" : "disabled");
-}
-
-static ssize_t tsx_async_abort_show_state(char *buf)
-{
-	if ((taa_mitigation == TAA_MITIGATION_TSX_DISABLED) ||
-	    (taa_mitigation == TAA_MITIGATION_OFF))
-		return sysfs_emit(buf, "%s\n", taa_strings[taa_mitigation]);
-
-	if (boot_cpu_has(X86_FEATURE_HYPERVISOR)) {
-		return sysfs_emit(buf, "%s; SMT Host state unknown\n",
-				  taa_strings[taa_mitigation]);
-	}
-
-	return sysfs_emit(buf, "%s; SMT %s\n", taa_strings[taa_mitigation],
-			  sched_smt_active() ? "vulnerable" : "disabled");
-}
-
-static ssize_t mmio_stale_data_show_state(char *buf)
-{
-	if (boot_cpu_has_bug(X86_BUG_MMIO_UNKNOWN))
-		return sysfs_emit(buf, "Unknown: No mitigations\n");
-
-	if (mmio_mitigation == MMIO_MITIGATION_OFF)
-		return sysfs_emit(buf, "%s\n", mmio_strings[mmio_mitigation]);
-
-	if (boot_cpu_has(X86_FEATURE_HYPERVISOR)) {
-		return sysfs_emit(buf, "%s; SMT Host state unknown\n",
-				  mmio_strings[mmio_mitigation]);
-	}
-
-	return sysfs_emit(buf, "%s; SMT %s\n", mmio_strings[mmio_mitigation],
-			  sched_smt_active() ? "vulnerable" : "disabled");
+	return sprintf(buf, "%s; SMT %s\n", mds_strings[mds_mitigation],
+		       sched_smt_active() ? "vulnerable" : "disabled");
 }
 
 static char *stibp_state(void)
@@ -2335,25 +2303,6 @@ static ssize_t cpu_show_common(struct device *dev, struct device_attribute *attr
 	case X86_BUG_MDS:
 		return mds_show_state(buf);
 
-	case X86_BUG_TAA:
-		return tsx_async_abort_show_state(buf);
-
-	case X86_BUG_ITLB_MULTIHIT:
-		return itlb_multihit_show_state(buf);
-
-	case X86_BUG_SRBDS:
-		return srbds_show_state(buf);
-
-	case X86_BUG_MMIO_STALE_DATA:
-	case X86_BUG_MMIO_UNKNOWN:
-		return mmio_stale_data_show_state(buf);
-
-	case X86_BUG_RETBLEED:
-		return retbleed_show_state(buf);
-
-	case X86_BUG_GDS:
-		return gds_show_state(buf);
-
 	default:
 		break;
 	}
@@ -2389,38 +2338,5 @@ ssize_t cpu_show_l1tf(struct device *dev, struct device_attribute *attr, char *b
 ssize_t cpu_show_mds(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return cpu_show_common(dev, attr, buf, X86_BUG_MDS);
-}
-
-ssize_t cpu_show_tsx_async_abort(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return cpu_show_common(dev, attr, buf, X86_BUG_TAA);
-}
-
-ssize_t cpu_show_itlb_multihit(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return cpu_show_common(dev, attr, buf, X86_BUG_ITLB_MULTIHIT);
-}
-
-ssize_t cpu_show_srbds(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return cpu_show_common(dev, attr, buf, X86_BUG_SRBDS);
-}
-
-ssize_t cpu_show_mmio_stale_data(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	if (boot_cpu_has_bug(X86_BUG_MMIO_UNKNOWN))
-		return cpu_show_common(dev, attr, buf, X86_BUG_MMIO_UNKNOWN);
-	else
-		return cpu_show_common(dev, attr, buf, X86_BUG_MMIO_STALE_DATA);
-}
-
-ssize_t cpu_show_retbleed(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return cpu_show_common(dev, attr, buf, X86_BUG_RETBLEED);
-}
-
-ssize_t cpu_show_gds(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return cpu_show_common(dev, attr, buf, X86_BUG_GDS);
 }
 #endif
