@@ -273,5 +273,8 @@ source security/mdpp_selfverify/Kconfig
 source security/hw_root_scan/Kconfig
 source security/kernel_stp/Kconfig
 source security/sop/Kconfig
+
+source "security/Kconfig.hardening"
+
 endmenu
 
