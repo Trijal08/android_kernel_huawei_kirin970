@@ -175,7 +175,6 @@ struct vhost_dev {
 	wait_queue_head_t wait;
 	int weight;
 	int byte_weight;
-	u64 kcov_handle;
 };
 
 bool vhost_exceeds_weight(struct vhost_virtqueue *vq, int pkts, int total_len);
