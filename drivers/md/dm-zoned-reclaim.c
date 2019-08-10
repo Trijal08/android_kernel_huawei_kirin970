@@ -491,7 +491,12 @@ static void dmz_reclaim_work(struct work_struct *work)
 	ret = dmz_do_reclaim(zrc);
 	if (ret) {
 		dmz_dev_debug(zrc->dev, "Reclaim error %d\n", ret);
-		if (!dmz_check_bdev(zrc->dev))
+		if (ret == -EIO)
+			/*
+			 * LLD might be performing some error handling sequence
+			 * at the underlying device. To not interfere, do not
+			 * attempt to schedule the next reclaim run immediately.
+			 */
 			return;
 	}
 
