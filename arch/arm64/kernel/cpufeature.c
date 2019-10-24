@@ -992,9 +992,24 @@ static int ssbs_emulation_handler(struct pt_regs *regs, u32 instr)
 	return 0;
 }
 
+#ifdef CONFIG_ARM64_SSBD
+static int ssbs_emulation_handler(struct pt_regs *regs, u32 instr)
+{
+	if (user_mode(regs))
+		return 1;
+
+	if (instr & BIT(CRm_shift))
+		regs->pstate |= PSR_SSBS_BIT;
+	else
+		regs->pstate &= ~PSR_SSBS_BIT;
+
+	arm64_skip_faulting_instruction(regs, 4);
+	return 0;
+}
+
 static struct undef_hook ssbs_emulation_hook = {
-	.instr_mask	= ~(1U << PSTATE_Imm_shift),
-	.instr_val	= 0xd500401f | PSTATE_SSBS,
+	.instr_mask	= ~(1U << CRm_shift),
+	.instr_val	= 0xd500001f | REG_PSTATE_SSBS_IMM,
 	.fn		= ssbs_emulation_handler,
 };
 
@@ -1018,14 +1033,6 @@ static void cpu_enable_ssbs(const struct arm64_cpu_capabilities *__unused)
 	}
 }
 #endif /* CONFIG_ARM64_SSBD */
-
-static void elf_hwcap_fixup(void)
-{
-#ifdef CONFIG_ARM64_ERRATUM_1742098
-	if (cpus_have_const_cap(ARM64_WORKAROUND_1742098))
-		compat_elf_hwcap2 &= ~COMPAT_HWCAP2_AES;
-#endif /* ARM64_ERRATUM_1742098 */
-}
 
 static const struct arm64_cpu_capabilities arm64_features[] = {
 	{
@@ -1149,6 +1156,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.min_field_value = 1,
 	},
 #endif
+#ifdef CONFIG_ARM64_SSBD
 	{
 		.desc = "Speculative Store Bypassing Safe (SSBS)",
 		.capability = ARM64_SSBS,
@@ -1158,7 +1166,9 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.field_pos = ID_AA64PFR1_SSBS_SHIFT,
 		.sign = FTR_UNSIGNED,
 		.min_field_value = ID_AA64PFR1_SSBS_PSTATE_ONLY,
+		.cpu_enable = cpu_enable_ssbs,
 	},
+#endif
 	{},
 };
 
