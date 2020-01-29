@@ -896,7 +896,8 @@ static int init_new_file(struct mount_info *mi, struct dentry *dentry,
 	int error = 0;
 	struct backing_file_context *bfc = NULL;
 	u32 block_count;
-	struct mem_range raw_signature = { NULL };
+	struct mem_range mem_range = {NULL};
+	struct signature_info *si = NULL;
 	struct mtree *hash_tree = NULL;
 
 	if (!mi || !dentry || !uuid)
