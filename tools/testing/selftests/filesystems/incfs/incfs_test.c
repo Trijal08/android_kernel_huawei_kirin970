@@ -210,7 +210,7 @@ int open_file_by_id(const char *mnt_dir, incfs_uuid_t id, bool use_ioctl)
 {
 	char *path = get_index_filename(mnt_dir, id);
 	int cmd_fd = open_commands_file(mnt_dir);
-	int fd = open(path, O_RDWR | O_CLOEXEC);
+	int fd = open(path, O_RDWR);
 	struct incfs_permit_fill permit_fill = {
 		.file_descriptor = fd,
 	};

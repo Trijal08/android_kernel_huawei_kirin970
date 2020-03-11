@@ -1369,7 +1369,7 @@ static long ioctl_permit_fill(struct file *f, void __user *arg)
 	struct incfs_permit_fill __user *usr_permit_fill = arg;
 	struct incfs_permit_fill permit_fill;
 	long error = 0;
-	struct file *file = NULL;
+	struct file *file = 0;
 
 	if (f->f_op != &incfs_pending_read_file_ops)
 		return -EPERM;
