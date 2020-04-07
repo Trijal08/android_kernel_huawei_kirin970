@@ -41,6 +41,19 @@ struct wakeup_irq_node {
 	const char *irq_name;
 };
 
+/*
+ * struct wakeup_irq_node - stores data and relationships for IRQs logged as
+ * either base or nested wakeup reasons during suspend/resume flow.
+ * @siblings - for membership on leaf or parent IRQ lists
+ * @irq      - the IRQ number
+ * @irq_name - the name associated with the IRQ, or a default if none
+ */
+struct wakeup_irq_node {
+	struct list_head siblings;
+	int irq;
+	const char *irq_name;
+};
+
 static DEFINE_SPINLOCK(wakeup_reason_lock);
 
 static LIST_HEAD(leaf_irqs);   /* kept in ascending IRQ sorted order */
@@ -102,7 +115,7 @@ static void delete_list(struct list_head *head)
 
 static bool add_sibling_node_sorted(struct list_head *head, int irq)
 {
-	struct wakeup_irq_node *n = NULL;
+	struct wakeup_irq_node *n;
 	struct list_head *predecessor = head;
 
 	if (unlikely(WARN_ON(!head)))
@@ -196,8 +209,7 @@ void log_threaded_irq_wakeup_reason(int irq, int parent_irq)
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
-static void __log_abort_or_abnormal_wake(bool abort, const char *fmt,
-					 va_list args)
+void __log_abort_or_abnormal_wake(bool abort, const char *fmt, va_list args)
 {
 	unsigned long flags;
 
@@ -223,6 +235,9 @@ void log_suspend_abort_reason(const char *fmt, ...)
 	va_start(args, fmt);
 	__log_abort_or_abnormal_wake(true, fmt, args);
 	va_end(args);
+#ifdef CONFIG_HUAWEI_DUBAI
+	dubai_update_suspend_abort_reason(non_irq_wake_reason);
+#endif
 }
 
 void log_abnormal_wakeup_reason(const char *fmt, ...)
@@ -331,10 +346,8 @@ static ssize_t last_suspend_time_show(struct kobject *kobj,
 
 	/* Export suspend_resume_time and sleep_time in pair here. */
 	return sprintf(buf, "%llu.%09lu %llu.%09lu\n",
-		       (unsigned long long)suspend_resume_time.tv_sec,
-		       suspend_resume_time.tv_nsec,
-		       (unsigned long long)sleep_time.tv_sec,
-		       sleep_time.tv_nsec);
+		       suspend_resume_time.tv_sec, suspend_resume_time.tv_nsec,
+		       sleep_time.tv_sec, sleep_time.tv_nsec);
 }
 
 static struct kobj_attribute resume_reason = __ATTR_RO(last_resume_reason);
@@ -378,7 +391,7 @@ static struct notifier_block wakeup_reason_pm_notifier_block = {
 	.notifier_call = wakeup_reason_pm_event,
 };
 
-static int __init wakeup_reason_init(void)
+int __init wakeup_reason_init(void)
 {
 	if (register_pm_notifier(&wakeup_reason_pm_notifier_block)) {
 		pr_warn("[%s] failed to register PM notifier\n", __func__);

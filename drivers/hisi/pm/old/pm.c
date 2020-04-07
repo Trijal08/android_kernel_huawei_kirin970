@@ -175,7 +175,7 @@ static void pm_gic_pending_dump(void)
 				if (irq < g_ap_irq_num) {
 					pr_info("wake up irq num: %d, irq name: %s",
 						irq, g_ap_irq_name[irq]);
-					log_wakeup_reason((int)irq);
+					log_irq_wakeup_reason((int)irq);
 				} else {
 					pr_info("wake up irq num: %d, irq name: no name!",
 						irq);
