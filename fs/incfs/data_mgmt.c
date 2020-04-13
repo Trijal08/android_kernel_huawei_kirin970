@@ -264,23 +264,18 @@ static ssize_t decompress(struct mem_range src, struct mem_range dst)
 
 static void log_read_one_record(struct read_log *rl, struct read_log_state *rs)
 {
-	union log_record *record =
-		(union log_record *)((u8 *)rl->rl_ring_buf + rs->next_offset);
-	size_t record_size;
+	struct read_log *log = &mi->mi_log;
+	struct read_log_state state;
+	s64 now_us = ktime_to_us(ktime_get());
+	struct read_log_record record = {
+		.file_id = *id,
+		.block_index = block_index,
+		.timed_out = timed_out,
+		.timestamp_us = now_us
+	};
 
-	switch (record->full_record.type) {
-	case FULL:
-		rs->base_record = record->full_record;
-		record_size = sizeof(record->full_record);
-		break;
-
-	case SAME_FILE:
-		rs->base_record.block_index =
-			record->same_file_record.block_index;
-		rs->base_record.absolute_ts_us +=
-			record->same_file_record.relative_ts_us;
-		record_size = sizeof(record->same_file_record);
-		break;
+	if (log->rl_size == 0)
+		return;
 
 	case SAME_FILE_NEXT_BLOCK:
 		++rs->base_record.block_index;
@@ -1363,10 +1358,15 @@ int incfs_get_uncollected_logs_count(struct mount_info *mi,
 	generation = log->rl_head.generation_id;
 	spin_unlock(&log->rl_lock);
 
-	if (generation != state->generation_id)
-		return head_no - tail_no;
-	else
-		return head_no - max_t(u64, tail_no, state->current_record_no);
+static void fill_pending_read_from_log_record(
+	struct incfs_pending_read_info *dest, const struct read_log_record *src,
+	struct read_log_state *state, u64 log_size)
+{
+	dest->file_id = src->file_id;
+	dest->block_index = src->block_index;
+	dest->serial_number =
+		state->current_pass_no * log_size + state->next_index;
+	dest->timestamp_us = src->timestamp_us;
 }
 
 int incfs_collect_logged_reads(struct mount_info *mi,
