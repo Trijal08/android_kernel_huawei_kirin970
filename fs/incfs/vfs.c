@@ -163,6 +163,15 @@ static const struct file_operations incfs_log_file_ops = {
 };
 
 static const struct inode_operations incfs_file_inode_ops = {
+	.setattr = simple_setattr,
+	.getattr = simple_getattr,
+	.getxattr = incfs_getxattr,
+	.listxattr = incfs_listxattr
+};
+
+#else
+
+static const struct inode_operations incfs_file_inode_ops = {
 	.setattr = incfs_setattr,
 	.getattr = simple_getattr,
 	.listxattr = incfs_listxattr
