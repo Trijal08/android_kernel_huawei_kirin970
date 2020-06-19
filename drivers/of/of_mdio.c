@@ -265,7 +265,6 @@ int of_mdiobus_register(struct mii_bus *mdio, struct device_node *np)
 					break;
 				if (rc != -ENODEV)
 					goto unregister;
-				break;
 			}
 		}
 	}
