@@ -1,0 +1,21 @@
+menu "IVP"
+
+config DEV_IVP
+     bool "ivp support"
+     default n
+     help
+          ivp driver for ivpv300.
+
+config IVP_SMMU
+	bool "IVP SMMU Support"
+	depends on IOMMU_API
+	depends on HISI_IODOMAIN_API
+	help
+	  IVP IOMMU Support.
+
+config IVP_IVPV160
+	bool "ivpv160"
+	depends on DEV_IVP
+
+endmenu
+

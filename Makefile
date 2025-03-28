@@ -29,6 +29,14 @@ export LC_COLLATE LC_NUMERIC
 # Avoid interference with shell env settings
 unexport GREP_OPTIONS
 
+export TARGET_ARM_TYPE = arm64
+export CFG_PLATFORM := kirin970
+export OBB_PRODUCT_NAME := kirin970
+export TARGET_BOARD_PLATFORM := kirin970
+TARGET_BUILD_VARIANT := user
+export TARGET_BUILD_VARIANT
+TARGET_ARM_TYPE := arm64
+
 # We are using a recursive build, so we need to do a little thinking
 # to get the ordering right.
 #
@@ -422,6 +430,16 @@ LINUXINCLUDE    := \
 		-I$(objtree)/include \
 		$(USERINCLUDE)
 
+LINUXINCLUDE += -I$(srctree)/mm \
+                -I$(srctree)/include \
+		-I$(srctree)/include/linux/hisi \
+		-I$(srctree)/drivers \
+		-I$(srctree)/drivers/huawei_platform \
+		-I$(srctree)/fs/proc \
+		-I$(srctree)/lib/libc_sec/securec_v2/include \
+		-I$(srctree)/drivers/devkit/lcdkit/lcdkit1.0 \
+		-I$(srctree)/drivers/hisi/ap/platform/$(TARGET_BOARD_PLATFORM)
+
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common -fshort-wchar \
@@ -748,6 +766,8 @@ KBUILD_CFLAGS += $(call cc-disable-warning, gnu)
 KBUILD_CFLAGS += $(call cc-disable-warning, duplicate-decl-specifier)
 # Quiet clang warning: comparison of unsigned expression < 0 is always false
 KBUILD_CFLAGS += $(call cc-disable-warning, tautological-compare)
+KBUILD_CFLAGS += -Wno-error=typedef-redefinition
+KBUILD_CFLAGS += -Wno-error=return-type
 # CLANG uses a _MergedGlobals as optimization, but this breaks modpost, as the
 # source of a reference will be _MergedGlobals and not on of the whitelisted names.
 # See modpost pattern 2
@@ -967,7 +987,7 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=strict-prototypes)
 KBUILD_CFLAGS   += $(call cc-option,-Werror=date-time)
 
 # enforce correct pointer usage
-KBUILD_CFLAGS   += $(call cc-option,-Werror=incompatible-pointer-types)
+#KBUILD_CFLAGS   += $(call cc-option,-Werror=incompatible-pointer-types)
 
 # Require designated initializers for all marked structures
 KBUILD_CFLAGS   += $(call cc-option,-Werror=designated-init)

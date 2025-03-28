@@ -1,0 +1,12 @@
+menu "S/R Options"
+choice
+	prompt "Select S/R Architecture"
+	default SR_OLD_ARCH
+	config SR_OLD_ARCH
+		bool "select old sr arch"
+endchoice
+
+if SR_OLD_ARCH
+	source "drivers/hisi/pm/old/Kconfig"
+endif
+endmenu

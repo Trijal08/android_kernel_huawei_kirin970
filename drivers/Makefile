@@ -6,6 +6,7 @@
 # Rewritten to use lists instead of if-statements.
 #
 
+
 obj-y				+= irqchip/
 obj-y				+= bus/
 
@@ -24,6 +25,7 @@ obj-y				+= pci/dwc/
 obj-$(CONFIG_PARISC)		+= parisc/
 obj-$(CONFIG_RAPIDIO)		+= rapidio/
 obj-y				+= video/
+obj-y				+= devkit/lcdkit/
 obj-y				+= idle/
 
 # IPMI must come before ACPI in order to provide IPMI opregion support
@@ -79,6 +81,7 @@ obj-$(CONFIG_DMA_SHARED_BUFFER) += dma-buf/
 obj-$(CONFIG_NUBUS)		+= nubus/
 obj-y				+= macintosh/
 obj-$(CONFIG_IDE)		+= ide/
+obj-y				+= i2c/
 obj-$(CONFIG_SCSI)		+= scsi/
 obj-y				+= nvme/
 obj-$(CONFIG_ATA)		+= ata/
@@ -87,6 +90,7 @@ obj-$(CONFIG_MTD)		+= mtd/
 obj-$(CONFIG_SPI)		+= spi/
 obj-$(CONFIG_SPMI)		+= spmi/
 obj-$(CONFIG_HSI)		+= hsi/
+obj-y				+= hsi/
 obj-y				+= net/
 obj-$(CONFIG_ATM)		+= atm/
 obj-$(CONFIG_FUSION)		+= message/
@@ -113,7 +117,7 @@ obj-$(CONFIG_SERIO)		+= input/serio/
 obj-$(CONFIG_GAMEPORT)		+= input/gameport/
 obj-$(CONFIG_INPUT)		+= input/
 obj-$(CONFIG_RTC_LIB)		+= rtc/
-obj-y				+= i2c/ media/
+obj-y				+= media/
 obj-$(CONFIG_PPS)		+= pps/
 obj-y				+= ptp/
 obj-$(CONFIG_W1)		+= w1/
@@ -129,7 +133,7 @@ obj-$(CONFIG_EDAC)		+= edac/
 obj-$(CONFIG_EISA)		+= eisa/
 obj-$(CONFIG_CPU_FREQ)		+= cpufreq/
 obj-$(CONFIG_CPU_IDLE)		+= cpuidle/
-obj-y				+= mmc/
+obj-$(CONFIG_MMC)		+= mmc/
 obj-$(CONFIG_MEMSTICK)		+= memstick/
 obj-$(CONFIG_NEW_LEDS)		+= leds/
 obj-$(CONFIG_INFINIBAND)	+= infiniband/
@@ -174,7 +178,6 @@ obj-$(CONFIG_MCB)		+= mcb/
 obj-$(CONFIG_PERF_EVENTS)	+= perf/
 obj-$(CONFIG_RAS)		+= ras/
 obj-$(CONFIG_THUNDERBOLT)	+= thunderbolt/
-obj-$(CONFIG_CORESIGHT)		+= hwtracing/coresight/
 obj-y				+= hwtracing/intel_th/
 obj-$(CONFIG_STM)		+= hwtracing/stm/
 obj-$(CONFIG_ANDROID)		+= android/
@@ -182,5 +185,17 @@ obj-$(CONFIG_NVMEM)		+= nvmem/
 obj-$(CONFIG_FPGA)		+= fpga/
 obj-$(CONFIG_FSI)		+= fsi/
 obj-$(CONFIG_TEE)		+= tee/
+
+obj-$(CONFIG_HI_VCODEC_VENC_HI3660) += vcodec/hi_vcodec/venc/drv/venc/
+obj-$(CONFIG_HI_VCODEC_VENC_HIVNA) += vcodec/hi_vcodec/venc_hivna/drv/venc/
+
+obj-$(CONFIG_HI_VCODEC_VDEC_HI3660) += vcodec/hi_vcodec/vdec/
+obj-$(CONFIG_HI_VCODEC_VDEC_HIVNA) += vcodec/hi_vcodec/vdec_hivna/
 obj-$(CONFIG_MULTIPLEXER)	+= mux/
-obj-$(CONFIG_GNSS)		+= gnss/
+obj-y += devkit/tpkit/
+obj-$(CONFIG_HISILICON_PLATFORM)+= hisi/
+obj-$(CONFIG_AUDIOKIT) += devkit/audiokit/
+obj-y += contexthub/
+obj-$(CONFIG_HUAWEI_PLATFORM) += huawei_platform/
+obj-y += hwpower/
+obj-$(CONFIG_CONNECTIVITY_HI110X) += connectivity/

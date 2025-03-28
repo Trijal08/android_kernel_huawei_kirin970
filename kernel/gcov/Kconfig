@@ -53,7 +53,7 @@ config GCOV_PROFILE_ALL
 choice
 	prompt "Specify GCOV format"
 	depends on GCOV_KERNEL
-	default GCOV_FORMAT_CLANG
+	depends on CC_IS_GCC
 	---help---
 	The gcov format is usually determined by the GCC version, and the
 	default is chosen according to your GCC version. However, there are

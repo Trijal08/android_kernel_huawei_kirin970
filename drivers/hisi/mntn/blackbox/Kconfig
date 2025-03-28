@@ -1,0 +1,69 @@
+menu "RDR - Running data recorder menu"
+
+config HISI_BB
+	bool "kernel run data recorder"
+	depends on SYSFS
+	default n
+	help
+	  This module can record some data about kernel internal info.
+	  Include:
+	  the task switch,
+	  interrupts switch,
+	  arm exception info,
+	  etc ...
+
+# need_other_module_clear
+config HISI_LPMCU_BB
+	bool "lpmcu bbox"
+	depends on  HISI_BB
+	default n
+	help
+	  This module can record some data about lpmcu info.
+	  Include:
+	  lpmcu exception,
+	  etc
+
+config HISI_HIFI_BB
+	bool "hifi bbox"
+	depends on  HISI_BB
+	default n
+	help
+	  This module can record some data about hifi info.
+	  Include:
+	  hifi exception,
+	  etc
+
+# need_other_module_clear
+config HISP_RDR
+	bool "hisp rdr"
+	depends on HISI_BB
+	default n
+	help
+	  This module can record isp rdr info.
+	  Include:
+	  isp,
+	  etc
+
+config HISI_DFX_CORE
+	bool "dfx core"
+	depends on HISI_BB
+	default n
+	help
+	  This module can record some data to dfx partition.
+	  Include:
+	  dfx,
+	  etc
+
+config HISI_MNTN_ESUBTYPE
+	bool "exception subtype"
+	depends on HISI_BB
+	default n
+	help
+	  This module can record exception subtype.
+	  Include:
+	  exception subtype,
+	  etc
+
+source "drivers/hisi/mntn/blackbox/platform_ap/Kconfig"
+source "drivers/hisi/hifi_dsp/Kconfig"
+endmenu

@@ -1,0 +1,8 @@
+source "drivers/hisi/hwnet/booster/Kconfig"
+source "drivers/hisi/hwnet/chr/Kconfig"
+source "drivers/hisi/hwnet/hw_dpi_mark/Kconfig"
+source "drivers/hisi/hwnet/ipv4/Kconfig"
+source "drivers/hisi/hwnet/netqos_sched/Kconfig"
+source "drivers/hisi/hwnet/network_aware/Kconfig"
+source "drivers/hisi/hwnet/waudio/Kconfig"
+

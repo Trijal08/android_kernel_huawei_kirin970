@@ -132,9 +132,11 @@ obj-$(CONFIG_REED_SOLOMON) += reed_solomon/
 obj-$(CONFIG_BCH) += bch.o
 obj-$(CONFIG_LZO_COMPRESS) += lzo/
 obj-$(CONFIG_LZO_DECOMPRESS) += lzo/
-obj-$(CONFIG_LZ4_COMPRESS) += lz4/
-obj-$(CONFIG_LZ4HC_COMPRESS) += lz4/
-obj-$(CONFIG_LZ4_DECOMPRESS) += lz4/
+obj-$(CONFIG_LZ4M_COMPRESS) += lz4m/
+obj-$(CONFIG_LZ4HC_COMPRESS) += lz4/lz4hc_compress/
+obj-$(CONFIG_LZ4_COMPRESS) += lz4/lz4_compress/
+obj-$(CONFIG_LZ4_DECOMPRESS) += lz4/lz4_decompress/
+obj-$(CONFIG_LZ4M_DECOMPRESS) += lz4m/
 obj-$(CONFIG_ZSTD_COMPRESS) += zstd/
 obj-$(CONFIG_ZSTD_DECOMPRESS) += zstd/
 obj-$(CONFIG_XZ_DEC) += xz/
@@ -268,4 +270,22 @@ obj-$(CONFIG_SBITMAP) += sbitmap.o
 
 obj-$(CONFIG_PARMAN) += parman.o
 
-obj-y += crypto/
+obj-$(CONFIG_HISI_SECUREC) += libc_sec/securec_v2/src/vsprintf_s.o \
+			      libc_sec/securec_v2/src/snprintf_s.o \
+			      libc_sec/securec_v2/src/memmove_s.o \
+			      libc_sec/securec_v2/src/strcat_s.o \
+			      libc_sec/securec_v2/src/strncpy_s.o \
+			      libc_sec/securec_v2/src/sprintf_s.o \
+			      libc_sec/securec_v2/src/memset_s.o \
+			      libc_sec/securec_v2/src/securecutil.o \
+			      libc_sec/securec_v2/src/strtok_s.o \
+			      libc_sec/securec_v2/src/memcpy_s.o \
+			      libc_sec/securec_v2/src/strncat_s.o \
+			      libc_sec/securec_v2/src/vsnprintf_s.o \
+			      libc_sec/securec_v2/src/strcpy_s.o \
+			      libc_sec/securec_v2/src/secureprintoutput_a.o \
+			      libc_sec/securec_v2/src/sscanf_s.o \
+			      libc_sec/securec_v2/src/vsscanf_s.o \
+			      libc_sec/securec_v2/src/secureinput_a.o
+
+subdir-ccflags-y += -DSECUREC_MEMSET_INDIRECT_USE=0

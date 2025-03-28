@@ -1,0 +1,27 @@
+#
+# Enhanced options for sched walt
+#
+
+config HUAWEI_SCHED_VIP
+	bool "Support a high prio sched policy in fair sched class"
+	default y
+	depends on HISI_EAS_SCHED
+
+config HUAWEI_SCHED_VIP_STRICT
+	bool "strict vip policy"
+	default n
+	depends on HUAWEI_SCHED_VIP
+
+config SCHED_DEPRECATED
+	bool "Sched optimization deprecated code"
+	default n
+	help
+	  Due to old platforms still alive, these code can't be deleted now.
+	  They have been deprecated in the new platform.
+
+	  New platform, say no. If unsure, say Y.
+
+config SCHED_STAT_YIELD
+	bool "Report task's cumulative_yield_time"
+	depends on PERF_CTRL
+	default n

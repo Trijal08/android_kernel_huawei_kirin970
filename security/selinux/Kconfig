@@ -100,14 +100,30 @@ config SECURITY_SELINUX_CHECKREQPROT_VALUE
 
 	  If you are unsure how to answer this question, answer 0.
 
-config SECURITY_SELINUX_SIDTAB_HASH_BITS
-	int "NSA SELinux sidtab hashtable size"
-	depends on SECURITY_SELINUX
-	range 8 13
-	default 9
+config HKIP_SELINUX_PROT
+        bool "Enable protection for SELinux policy DB"
+	depends on HKIP_PRMEM
+        help
+          Adds hardening to various data structures, that are both constant
+          and semi-constant in nature.
+          Also loads into a special memory pool the data structures created
+          when receiveing in input the policy description.
+          The pool is write-protected, once loading is complete.
+
+config HKIP_SELINUX_POLDB_SIZE_MB
+	int "SELinux policydb maximum allocation size, in MB"
+	depends on HKIP_SELINUX_PROT
+	range 1 15
+	default 8
 	help
-	  This option sets the number of buckets used in the sidtab hashtable
-	  to 2^SECURITY_SELINUX_SIDTAB_HASH_BITS buckets. The number of hash
-	  collisions may be viewed at /sys/fs/selinux/ss/sidtab_hash_stats. If
-	  chain lengths are high (e.g. > 20) then selecting a higher value here
-	  will ensure that lookups times are short and stable.
+	  This option sets the default value for the 'checkreqprot' flag
+	  that determines whether SELinux checks the protection requested
+
+config SECURITY_SELINUX_TRACE_LOG
+        bool "Enable call trace for SELinux avc log"
+        default n
+        help
+          This option adds call trace print for SELinux avc denied
+          in kernel log.
+          And it can only print one kind of avc denied warning
+          by using config.

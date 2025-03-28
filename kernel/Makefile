@@ -116,6 +116,8 @@ obj-$(CONFIG_TORTURE_TEST) += torture.o
 
 obj-$(CONFIG_HAS_IOMEM) += memremap.o
 
+obj-y += hisi/
+
 $(obj)/configs.o: $(obj)/config_data.h
 
 targets += config_data.gz

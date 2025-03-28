@@ -79,6 +79,11 @@ config USB_XHCI_TEGRA
 	  Say 'Y' to enable the support for the xHCI host controller
 	  found in NVIDIA Tegra124 and later SoCs.
 
+config CHIP_USB_XHCI_HUB_PORT_DIS
+	bool
+	---help---
+	  Work around the bug which hub port maybe is abnomal, disable it after reset
+
 endif # USB_XHCI_HCD
 
 config USB_EHCI_HCD

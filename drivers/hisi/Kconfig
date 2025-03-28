@@ -1,0 +1,77 @@
+menu "Hisilicon platform"
+
+menuconfig HISILICON_PLATFORM
+	bool "Hisilicon platform support"
+	default n
+	help
+	  Say yes here to support the hisilicon platform
+
+config HISI_INC_MODEM_CONFIG
+        bool "whether or not to include modem config for kernel"
+        default n
+        help
+           Say 'Y' if you want to include modem config.
+               so kernel modem can be compiled.
+           Say 'N' if you don't want to include modem config,
+               so skip modem config check in check_menuconfig.
+           Suggestion is to say 'N' in kernel config and "Y' in modem.
+
+if HISILICON_PLATFORM
+
+source "drivers/hisi/accurate_delay/Kconfig"
+source "drivers/hisi/adc/Kconfig"
+source "drivers/hisi/bootdevice/Kconfig"
+source "drivers/hisi/cmdline/Kconfig"
+source "drivers/hisi/cpuload/Kconfig"
+source "drivers/hisi/da_combine/Kconfig"
+source "drivers/hisi/da_combine_dsp/Kconfig"
+source "drivers/hisi/ddrc/Kconfig"
+source "drivers/hisi/drmdriver/Kconfig"
+source "drivers/hisi/dsm/Kconfig"
+source "drivers/hisi/dubai/Kconfig"
+source "drivers/hisi/efuse/Kconfig"
+source "drivers/hisi/emcom/Kconfig"
+source "drivers/hisi/hhee/Kconfig"
+source "drivers/hisi/hifi_dsp/Kconfig"
+source "drivers/hisi/hifi_mailbox/Kconfig"
+source "drivers/hisi/hisee/Kconfig"
+source "drivers/hisi/hisi_lmk/Kconfig"
+source "drivers/hisi/hwbootfail/Kconfig"
+source "drivers/hisi/hwerecovery/Kconfig"
+source "drivers/hisi/hwfdleak/Kconfig"
+source "drivers/hisi/hwmemcheck/Kconfig"
+source "drivers/hisi/hwnet/Kconfig"
+source "drivers/hisi/hwusb/Kconfig"
+source "drivers/hisi/hw_vote/Kconfig"
+source "drivers/hisi/hwzerohung/Kconfig"
+source "drivers/hisi/ics/Kconfig"
+source "drivers/hisi/isp/Kconfig"
+source "drivers/hisi/ivp/Kconfig"
+source "drivers/hisi/jpu/Kconfig"
+source "drivers/hisi/load_image/Kconfig"
+source "drivers/hisi/log/Kconfig"
+source "drivers/hisi/mailbox/Kconfig"
+source "drivers/hisi/memory_dump/Kconfig"
+source "drivers/hisi/mntn/Kconfig"
+if HISI_INC_MODEM_CONFIG
+-source "drivers/hisi/modem/Kconfig"
+endif
+source "drivers/hisi/noc/Kconfig"
+source "drivers/hisi/perf_ctrl/Kconfig"
+source "drivers/hisi/perfhub/Kconfig"
+source "drivers/hisi/pm/Kconfig"
+source "drivers/hisi/rpmb/Kconfig"
+source "drivers/hisi/secs_power_ctrl/Kconfig"
+source "drivers/hisi/slimbus/Kconfig"
+source "drivers/hisi/soundtrigger/Kconfig"
+source "drivers/hisi/spmi_hisi/Kconfig"
+source "drivers/hisi/storage_rofa/Kconfig"
+source "drivers/hisi/switch/Kconfig"
+source "drivers/hisi/syscounter/Kconfig"
+source "drivers/hisi/timekeeper/Kconfig"
+source "drivers/hisi/tlb_conflict/Kconfig"
+source "drivers/hisi/tzdriver/Kconfig"
+
+endif #HISILICON_PLATFORM
+
+endmenu

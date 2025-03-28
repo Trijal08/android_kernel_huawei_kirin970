@@ -1,0 +1,11 @@
+config HISEE_MNTN
+    bool "hisee mntn module support"
+    default n
+    help
+      Say yes here to support the hisee mntn module.
+
+config MNTN_CHECKMISC
+    bool "chech misc ver"
+    default n
+    help
+      Say yes here to support checking misc version.

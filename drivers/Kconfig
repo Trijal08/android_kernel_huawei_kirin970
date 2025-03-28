@@ -91,6 +91,8 @@ source "drivers/regulator/Kconfig"
 
 source "drivers/media/Kconfig"
 
+source "drivers/vcodec/hi_vcodec/Kconfig"
+
 source "drivers/video/Kconfig"
 
 source "sound/Kconfig"
@@ -177,6 +179,8 @@ source "drivers/ipack/Kconfig"
 
 source "drivers/reset/Kconfig"
 
+source "drivers/gpu/Kconfig"
+
 source "drivers/fmc/Kconfig"
 
 source "drivers/phy/Kconfig"
@@ -213,4 +217,19 @@ source "drivers/tee/Kconfig"
 
 source "drivers/mux/Kconfig"
 
+source "drivers/hisi/Kconfig"
+
+source "drivers/huawei_platform/Kconfig"
+
+source "drivers/hwpower/Kconfig"
+
+source "drivers/contexthub/Kconfig"
+
+source "drivers/devkit/audiokit/Kconfig"
+
+source "drivers/devkit/lcdkit/Kconfig"
+
+source "drivers/devkit/tpkit/Kconfig"
+
+source "drivers/connectivity/Kconfig"
 endmenu

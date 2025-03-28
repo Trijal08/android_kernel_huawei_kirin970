@@ -263,7 +263,12 @@ config DEFAULT_SECURITY
 	default "apparmor" if DEFAULT_SECURITY_APPARMOR
 	default "" if DEFAULT_SECURITY_DAC
 
-source "security/Kconfig.hardening"
-
+source security/kernel_harden/Kconfig
+source security/check_root/Kconfig
+source security/hkip_atkinfo/Kconfig
+source security/mdpp_selfverify/Kconfig
+source security/hw_root_scan/Kconfig
+source security/kernel_stp/Kconfig
+source security/sop/Kconfig
 endmenu
 

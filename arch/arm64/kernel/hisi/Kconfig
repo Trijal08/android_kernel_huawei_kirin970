@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config HAVE_HW_BREAKPOINT_ADDR_MASK
+    bool
+    depends on HAVE_HW_BREAKPOINT
+
+config HISI_WORKAROUND_MONITOR
+	bool "Hisilicon workaround monitor" if EXPERT
+	default n
+	help
+	  Hisilicon optimizations for cpu workaround
+
+config HISI_HARDEN_BRANCH_PREDICTOR
+	bool "Hisilicon Harden the branch predictor solution" if EXPERT
+	default n
+	depends on HARDEN_BRANCH_PREDICTOR
+	depends on HISI_WORKAROUND_MONITOR
+	help
+	  Hisilicon optimizations for harden branch predictor schema.

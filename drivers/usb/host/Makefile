@@ -25,6 +25,7 @@ endif
 ifneq ($(CONFIG_USB_XHCI_RCAR), )
 	xhci-plat-hcd-y		+= xhci-rcar.o
 endif
+xhci-plat-hcd-$(CONFIG_USB_DWC3_NYET_ABNORMAL) += xhci-local-mem.o
 
 obj-$(CONFIG_USB_WHCI_HCD)	+= whci/
 

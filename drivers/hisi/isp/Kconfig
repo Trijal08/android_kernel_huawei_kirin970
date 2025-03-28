@@ -1,0 +1,6 @@
+config HISP_DPM
+	tristate "HISP DPM(digital power monitor) support"
+	depends on DPM_HWMON
+	default n
+	help
+		This framebuffer driver supports dpm function.

@@ -1,0 +1,16 @@
+config HISILICON_PLATFORM_DDRC
+	bool "Hisilicon platform ddr controller support"
+	default n
+	help
+	  Say yes here to support the hisilicon platform ddr controller
+
+config HISI_DDRC_SEC
+	bool "hisi ddr secprotect"
+	default n
+
+config HISI_DDR_PERF_CTRL
+        tristate "Hisilicon DDR Performance Control Function"
+        depends on PERF_CTRL
+        default n
+        help
+	  Hisilicon DDR Performance Control Function
