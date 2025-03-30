@@ -99,6 +99,30 @@ static int calc_hidl_process_hash(void)
 	return CHECK_ACCESS_SUCC;
 }
 
+
+void dump_hash_auth(unsigned char *hash_buf)
+{
+
+	tlogd("{0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, ",
+		*(hash_buf + 0), *(hash_buf + 1), *(hash_buf + 2), *(hash_buf + 3),
+		*(hash_buf + 4), *(hash_buf + 5), *(hash_buf + 6), *(hash_buf + 7));
+	tlogd("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, ",
+		*(hash_buf + 8), *(hash_buf + 9), *(hash_buf + 10), *(hash_buf + 11),
+		*(hash_buf + 12), *(hash_buf + 13), *(hash_buf + 14),
+		*(hash_buf + 15));
+	tlogd("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X,  ",
+		*(hash_buf + 16), *(hash_buf + 17), *(hash_buf + 18),
+		*(hash_buf + 19), *(hash_buf + 20), *(hash_buf + 21),
+		*(hash_buf + 22), *(hash_buf + 23));
+	tlogd("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X} ",
+		*(hash_buf + 24), *(hash_buf + 25), *(hash_buf + 26),
+		*(hash_buf + 27), *(hash_buf + 28), *(hash_buf + 29),
+		*(hash_buf + 30), *(hash_buf + 31));
+}
+
+/* 
+ To change path - please change this function and spoof path hash
+*/
 static int check_hidl_path_access(void)
 {
 	unsigned char digest[SHA256_DIGEST_LENTH] = {0};
@@ -107,6 +131,9 @@ static int check_hidl_path_access(void)
 		tloge("calc path hash failed\n");
 		return CHECK_PATH_HASH_FAIL;
 	}
+	
+	tlogd("Path hash is :\n");
+	dump_hash_auth(digest);
 
 	if (memcmp(digest, g_hidl_path_hash, SHA256_DIGEST_LENTH)) {
 		tlogd("process is not libteec hidl service, keep going\n");
@@ -175,6 +202,7 @@ int check_hidl_access(void)
 {
 	int ret;
 
+        tlogd("check_hidl_access enter\n");
 	if (!current->mm) {
 		tlogd("kernel thread need not check\n");
 		return ENTER_BYPASS_CHANNEL;
@@ -194,6 +222,7 @@ int check_hidl_access(void)
 		return CHECK_CODE_HASH_FAIL;
 	}
 
+        tlogd("check_hidl_access succ\n");
 	return CHECK_ACCESS_SUCC;
 }
 #endif
@@ -348,15 +377,25 @@ static int calc_task_so_hash(unsigned char *digest, uint32_t dig_len,
 	return rc;
 }
 
-static int proc_calc_hash(uint8_t kernel_api, struct tc_ns_session *session,
+static int proc_calc_hash(char *pkg_name, uint8_t kernel_api, struct tc_ns_session *session,
 	struct task_struct *cur_struct)
 {
 	int rc, i;
 	int so_found = 0;
 
+	unsigned char gatekeeper_hash[32] = {0x13, 0xF2, 0x99, 0xDE, 0x59, 0x3A, 0x96, 0x2F,
+					   0xA9, 0x00, 0x42, 0x97, 0x88, 0xB0, 0x62, 0xDE,
+					   0xB7, 0x12, 0xDC, 0xD1, 0x7A, 0x4A, 0x2D, 0xA6,
+					   0xB4, 0xB2, 0x5A, 0x0C, 0x36, 0x7D, 0x74, 0x97};
+
+	unsigned char fingerprint_hash[32] = {0x2F, 0x46, 0xE4, 0x4C, 0x57, 0xB7, 0x38, 0xE4,
+					    0xFE, 0x5E, 0xC6, 0x3B, 0x05, 0x49, 0x50, 0x47,
+					    0x9F, 0xED, 0xF6, 0x63, 0x15, 0x5D, 0xC9, 0xA4,
+					    0x1C, 0xC2, 0x55, 0x17, 0xD3, 0x1A, 0xA5, 0x04};
 	mutex_crypto_hash_lock();
 	if (kernel_api == TEE_REQ_FROM_USER_MODE) {
 		for (i = 0; so_found < NUM_OF_SO && i < KIND_OF_SO; i++) {
+		        tlogd("so_found %d\n",so_found);
 			rc = calc_task_so_hash(session->auth_hash_buf + MAX_SHA_256_SZ * so_found,
 				(uint32_t)SHA256_DIGEST_LENTH, cur_struct, i);
 			if (!rc)
@@ -376,6 +415,23 @@ static int proc_calc_hash(uint8_t kernel_api, struct tc_ns_session *session,
 		tloge("tee calc ca hash failed\n");
 		return -EFAULT;
 	}
+
+
+	tlogd("Auth hash buff before spoof\n");
+	dump_hash_auth(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO);
+	
+	/* Hardcode hash - same of the native_packages */
+	if (!strncmp(pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.2-service", 72)){
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO, fingerprint_hash, MAX_SHA_256_SZ);
+	}
+	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.gatekeeper@1.0-service", 54)) {
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO, gatekeeper_hash, MAX_SHA_256_SZ);
+	}
+	tlogd("Auth hash buff after spoof\n");
+	dump_hash_auth(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO);
+	
 	mutex_crypto_hash_unlock();
 	return EOK;
 }
@@ -386,7 +442,10 @@ int calc_client_auth_hash(struct tc_ns_dev_file *dev_file,
 	int ret;
 	struct task_struct *cur_struct = NULL;
 	bool check = false;
+	
+	
 #ifdef CONFIG_ANDROID_HIDL
+       tlogd("CONFIG_ANDROID_HIDL\n");
 	bool is_hidl_srvc = false;
 #endif
 	check = (!dev_file || !context || !session);
@@ -419,7 +478,7 @@ int calc_client_auth_hash(struct tc_ns_dev_file *dev_file,
 	cur_struct = current;
 #endif
 
-	ret = proc_calc_hash(dev_file->kernel_api, session, cur_struct);
+	ret = proc_calc_hash(dev_file->pkg_name, dev_file->kernel_api, session, cur_struct);
 #ifdef CONFIG_ANDROID_HIDL
 	if (is_hidl_srvc)
 		put_task_struct(cur_struct);
