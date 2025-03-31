@@ -100,7 +100,7 @@ static int calc_hidl_process_hash(void)
 }
 
 
-void dump_hash_auth(unsigned char *hash_buf)
+static void dump_hash_auth(unsigned char *hash_buf)
 {
 
 	tlogd("{0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, ",
@@ -120,6 +120,40 @@ void dump_hash_auth(unsigned char *hash_buf)
 		*(hash_buf + 30), *(hash_buf + 31));
 }
 
+static void spoof_hash_auth(unsigned char *hash_buf, char *pkg_name)
+{
+	unsigned char gatekeeper_hash[32] = {0x13, 0xF2, 0x99, 0xDE, 0x59, 0x3A, 0x96, 0x2F,
+					   0xA9, 0x00, 0x42, 0x97, 0x88, 0xB0, 0x62, 0xDE,
+					   0xB7, 0x12, 0xDC, 0xD1, 0x7A, 0x4A, 0x2D, 0xA6,
+					   0xB4, 0xB2, 0x5A, 0x0C, 0x36, 0x7D, 0x74, 0x97};
+
+	unsigned char fingerprint_hash[32] = {0x2F, 0x46, 0xE4, 0x4C, 0x57, 0xB7, 0x38, 0xE4,
+					    0xFE, 0x5E, 0xC6, 0x3B, 0x05, 0x49, 0x50, 0x47,
+					    0x9F, 0xED, 0xF6, 0x63, 0x15, 0x5D, 0xC9, 0xA4,
+					    0x1C, 0xC2, 0x55, 0x17, 0xD3, 0x1A, 0xA5, 0x04};
+
+	unsigned char keymaster_hash[32] = {0xDE, 0xE1, 0x2D, 0x2F, 0xA7, 0xCA, 0xC4, 0x25,
+					    0x92, 0x38, 0x25, 0x7E, 0xDA, 0xBD, 0x8D, 0x2A,
+					    0x7D, 0x9D, 0x49, 0x52, 0x7A, 0x64, 0x82, 0xE6,
+					    0x67, 0xA6, 0x99, 0x0E, 0x79, 0x0E, 0x40, 0x5D};
+	
+	/* Hardcode hash - same of the native_packages */
+	if (!strncmp(pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.2-service", 72)){
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(hash_buf, fingerprint_hash, MAX_SHA_256_SZ);
+	}
+	
+	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.gatekeeper@1.0-service", 54)) {
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(hash_buf, gatekeeper_hash, MAX_SHA_256_SZ);
+	}
+	
+	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.keymaster@3.0-service", 53)) {
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(hash_buf, keymaster_hash, MAX_SHA_256_SZ);
+	}
+}
+
 /* 
  To change path - please change this function and spoof path hash
 */
@@ -132,9 +166,6 @@ static int check_hidl_path_access(void)
 		return CHECK_PATH_HASH_FAIL;
 	}
 	
-	tlogd("Path hash is :\n");
-	dump_hash_auth(digest);
-
 	if (memcmp(digest, g_hidl_path_hash, SHA256_DIGEST_LENTH)) {
 		tlogd("process is not libteec hidl service, keep going\n");
 		return ENTER_BYPASS_CHANNEL;
@@ -202,7 +233,6 @@ int check_hidl_access(void)
 {
 	int ret;
 
-        tlogd("check_hidl_access enter\n");
 	if (!current->mm) {
 		tlogd("kernel thread need not check\n");
 		return ENTER_BYPASS_CHANNEL;
@@ -222,7 +252,6 @@ int check_hidl_access(void)
 		return CHECK_CODE_HASH_FAIL;
 	}
 
-        tlogd("check_hidl_access succ\n");
 	return CHECK_ACCESS_SUCC;
 }
 #endif
@@ -383,19 +412,9 @@ static int proc_calc_hash(char *pkg_name, uint8_t kernel_api, struct tc_ns_sessi
 	int rc, i;
 	int so_found = 0;
 
-	unsigned char gatekeeper_hash[32] = {0x13, 0xF2, 0x99, 0xDE, 0x59, 0x3A, 0x96, 0x2F,
-					   0xA9, 0x00, 0x42, 0x97, 0x88, 0xB0, 0x62, 0xDE,
-					   0xB7, 0x12, 0xDC, 0xD1, 0x7A, 0x4A, 0x2D, 0xA6,
-					   0xB4, 0xB2, 0x5A, 0x0C, 0x36, 0x7D, 0x74, 0x97};
-
-	unsigned char fingerprint_hash[32] = {0x2F, 0x46, 0xE4, 0x4C, 0x57, 0xB7, 0x38, 0xE4,
-					    0xFE, 0x5E, 0xC6, 0x3B, 0x05, 0x49, 0x50, 0x47,
-					    0x9F, 0xED, 0xF6, 0x63, 0x15, 0x5D, 0xC9, 0xA4,
-					    0x1C, 0xC2, 0x55, 0x17, 0xD3, 0x1A, 0xA5, 0x04};
 	mutex_crypto_hash_lock();
 	if (kernel_api == TEE_REQ_FROM_USER_MODE) {
 		for (i = 0; so_found < NUM_OF_SO && i < KIND_OF_SO; i++) {
-		        tlogd("so_found %d\n",so_found);
 			rc = calc_task_so_hash(session->auth_hash_buf + MAX_SHA_256_SZ * so_found,
 				(uint32_t)SHA256_DIGEST_LENTH, cur_struct, i);
 			if (!rc)
@@ -416,20 +435,12 @@ static int proc_calc_hash(char *pkg_name, uint8_t kernel_api, struct tc_ns_sessi
 		return -EFAULT;
 	}
 
-
-	tlogd("Auth hash buff before spoof\n");
+	tlogd("Auth hash buff before spoof:\n");
 	dump_hash_auth(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO);
 	
-	/* Hardcode hash - same of the native_packages */
-	if (!strncmp(pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.2-service", 72)){
-		tlogd("Spoof now %s process\n",pkg_name);
-		memcpy(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO, fingerprint_hash, MAX_SHA_256_SZ);
-	}
-	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.gatekeeper@1.0-service", 54)) {
-		tlogd("Spoof now %s process\n",pkg_name);
-		memcpy(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO, gatekeeper_hash, MAX_SHA_256_SZ);
-	}
-	tlogd("Auth hash buff after spoof\n");
+	spoof_hash_auth(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO, pkg_name);
+	
+	tlogd("Auth hash buff after spoof:\n");
 	dump_hash_auth(session->auth_hash_buf + MAX_SHA_256_SZ * NUM_OF_SO);
 	
 	mutex_crypto_hash_unlock();
@@ -443,9 +454,7 @@ int calc_client_auth_hash(struct tc_ns_dev_file *dev_file,
 	struct task_struct *cur_struct = NULL;
 	bool check = false;
 	
-	
 #ifdef CONFIG_ANDROID_HIDL
-       tlogd("CONFIG_ANDROID_HIDL\n");
 	bool is_hidl_srvc = false;
 #endif
 	check = (!dev_file || !context || !session);
