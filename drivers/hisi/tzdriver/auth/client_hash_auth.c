@@ -147,6 +147,11 @@ static void spoof_hash_auth(unsigned char *hash_buf, char *pkg_name)
 					    0x3F, 0x52, 0x91, 0x5E, 0xCA, 0x8C, 0xDB, 0xE0,
 					    0xF9, 0xB4, 0x3C, 0x92, 0xDD, 0x66, 0x4C, 0x6A};
 	
+	unsigned char omx_hash[32] = {0xC6, 0xB0, 0x28, 0x8D, 0x85, 0xBE, 0x61, 0x7A,
+					    0x27, 0xC1, 0x0D, 0xD3, 0x44, 0x9A, 0xAE, 0x0A,
+					    0x33, 0x79, 0xB3, 0xA9, 0xAD, 0x8B, 0x4D, 0xBB,
+					    0x8F, 0x0B, 0x4E, 0x21, 0x62, 0x98, 0x15, 0x79};
+	
 	/* Hardcode hash - same of the native_packages */
 	if (!strncmp(pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.2-service", 72)){
 		tlogd("Spoof now %s process\n",pkg_name);
@@ -171,6 +176,11 @@ static void spoof_hash_auth(unsigned char *hash_buf, char *pkg_name)
 	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.graphics.composer@2.2-service", 61)) {
 		tlogd("Spoof now %s process\n",pkg_name);
 		memcpy(hash_buf, graphics_composer_hash, MAX_SHA_256_SZ);
+	}
+	
+	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.media.omx@1.0-service", 53)) {
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(hash_buf, omx_hash, MAX_SHA_256_SZ);
 	}
 }
 
