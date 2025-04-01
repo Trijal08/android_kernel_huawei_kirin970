@@ -137,6 +137,16 @@ static void spoof_hash_auth(unsigned char *hash_buf, char *pkg_name)
 					    0x7D, 0x9D, 0x49, 0x52, 0x7A, 0x64, 0x82, 0xE6,
 					    0x67, 0xA6, 0x99, 0x0E, 0x79, 0x0E, 0x40, 0x5D};
 	
+	unsigned char graphics_allocator_hash[32] = {0x7B, 0x77, 0x87, 0xF4, 0xE6, 0x69, 0xB0, 0xED,
+					    0xDB, 0x7D, 0xD1, 0x94, 0x50, 0x8A, 0xAE, 0x7C,
+					    0xB0, 0xC3, 0x89, 0xAE, 0xC7, 0x72, 0x16, 0x88,
+					    0xE7, 0xFF, 0x67, 0x2F, 0x86, 0xE9, 0x05, 0x93};
+	
+	unsigned char graphics_composer_hash[32] = {0x04, 0x6B, 0x09, 0x58, 0x9E, 0x3D, 0xED, 0x51,
+					    0x61, 0xE0, 0x0A, 0xF5, 0xAF, 0x47, 0x00, 0xC7,
+					    0x3F, 0x52, 0x91, 0x5E, 0xCA, 0x8C, 0xDB, 0xE0,
+					    0xF9, 0xB4, 0x3C, 0x92, 0xDD, 0x66, 0x4C, 0x6A};
+	
 	/* Hardcode hash - same of the native_packages */
 	if (!strncmp(pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.2-service", 72)){
 		tlogd("Spoof now %s process\n",pkg_name);
@@ -151,6 +161,16 @@ static void spoof_hash_auth(unsigned char *hash_buf, char *pkg_name)
 	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.keymaster@3.0-service", 53)) {
 		tlogd("Spoof now %s process\n",pkg_name);
 		memcpy(hash_buf, keymaster_hash, MAX_SHA_256_SZ);
+	}
+	
+	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.graphics.allocator@2.0-service", 62)) {
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(hash_buf, graphics_allocator_hash, MAX_SHA_256_SZ);
+	}
+	
+	if (!strncmp(pkg_name, "/vendor/bin/hw/android.hardware.graphics.composer@2.2-service", 61)) {
+		tlogd("Spoof now %s process\n",pkg_name);
+		memcpy(hash_buf, graphics_composer_hash, MAX_SHA_256_SZ);
 	}
 }
 
