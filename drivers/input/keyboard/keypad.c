@@ -19,6 +19,10 @@
 #define MAX_BUF_LEN 64
 #define WRITE_BUF_LEN 8
 
+#ifdef CONFIG_KEY_MASK
+static bool key_mask = false;
+#endif
+
 struct keypad_common_data g_key_common_data;
 
 static int of_get_key_gpio(struct device_node *np, const char *propname,
@@ -254,16 +258,6 @@ static void keypad_free_irqs(struct keypad_key_devices *keypad_key_dev,
 		free_irq(key_common_data->irq_arr[i], keypad_key_dev);
 }
 
-static int keypad_key_create_node(void)
-{
-	/* 0660 is S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR */
-	pr_err("%s enter\n", __func__);
-	if (!proc_create("key_mask", 0660, NULL, &key_mask_fops))
-		pr_err("[%s]:failed to create key_mask proc\n", __func__);
-
-	return 0;
-}
-
 struct keypad_common_data *keypad_get_common_data(void)
 {
 	return &g_key_common_data;
@@ -283,10 +277,10 @@ int keypad_get_of_node(const struct of_device_id *keypad_match,
 int keypad_register_dev(struct keypad_key_devices *keypad_key_dev)
 {
 	int ret;
-
+#ifdef CONFIG_KEY_MASK
 	g_key_common_data.key_mask_ctl = KEY_ENABLE_MASK;
 	g_key_common_data.key_mask_flag = KEY_ENABLE_MASK;
-
+#endif
 	ret = keypad_init_pin(keypad_key_dev);
 	if (ret) {
 		dev_err(&keypad_key_dev->pdev->dev, "%s init_pin fail\n",
@@ -317,19 +311,10 @@ int keypad_register_dev(struct keypad_key_devices *keypad_key_dev)
 		goto req_irq_err;
 	}
 
-#ifdef CONFIG_KEY_MASK
-	ret = keypad_key_create_node();
-	if (ret) {
-		dev_err(&keypad_key_dev->pdev->dev, "%s keypad_key_init_last_step fail\n",
-			keypad_key_dev->devices_names);
-		goto create_node_err;
-	}
-#endif
-
 	return 0;
 
 #ifdef CONFIG_KEY_MASK
-create_node_err:
+if (key_mask)
 	keypad_free_irqs(keypad_key_dev, &g_key_common_data);
 #endif
 req_irq_err:
@@ -359,9 +344,29 @@ int keypad_unregister_dev(struct keypad_key_devices *keypad_key_dev)
 	wakeup_source_trash(&(keypad_key_dev->gpio_key_lock));
 
 	input_unregister_device(keypad_key_dev->input_dev);
-#ifdef CONFIG_KEY_MASK
-	if (g_key_common_data.irq_cnt == 0)
-		remove_proc_entry("key_mask", NULL);
-#endif
 	return 0;
 }
+
+#ifdef CONFIG_KEY_MASK
+static int __init key_mask_init(void)
+{
+	struct proc_dir_entry *pe = proc_create("key_mask", 0660, NULL, &key_mask_fops);
+	
+	if (!pe) {
+		key_mask = true;
+		pr_err("[%s]:failed to create key_mask proc\n", __func__);
+		return -ENOMEM;
+	}
+
+	pr_info("[%s]:successfully created key_mask proc\n", __func__);
+	return 0;
+}
+module_init(key_mask_init);
+
+static void __exit key_mask_exit(void)
+{
+	if (g_key_common_data.irq_cnt == 0)
+		remove_proc_entry("key_mask", NULL);
+}
+module_exit(key_mask_exit);
+#endif
