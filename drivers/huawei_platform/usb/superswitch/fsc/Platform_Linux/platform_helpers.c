@@ -1264,8 +1264,8 @@ static ssize_t FUSB3601__fusb_Sysfs_Reinitialize_fusb3601(struct device* dev,
 }
 
 /* Define our device attributes to export them to sysfs */
-static DEVICE_ATTR(hostcomm, S_IRWXU | S_IRWXG , FUSB3601__fusb_Sysfs_Hostcomm_show, FUSB3601__fusb_Sysfs_Hostcomm_store);
-static DEVICE_ATTR(pd_state_log, S_IRUSR | S_IRGRP , FUSB3601__fusb_Sysfs_PDStateLog_show, NULL);
+static DEVICE_ATTR(hostcomm, 0660, FUSB3601__fusb_Sysfs_Hostcomm_show, FUSB3601__fusb_Sysfs_Hostcomm_store);
+static DEVICE_ATTR(pd_state_log, S_IRUSR | S_IRGRP, FUSB3601__fusb_Sysfs_PDStateLog_show, NULL);
 static DEVICE_ATTR(typec_state_log, S_IRUSR | S_IRGRP, FUSB3601__fusb_Sysfs_TypeCStateLog_show, NULL);
 static DEVICE_ATTR(reinitialize, S_IRUSR | S_IRGRP, FUSB3601__fusb_Sysfs_Reinitialize_fusb3601, NULL);
 
