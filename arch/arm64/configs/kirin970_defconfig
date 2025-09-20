@@ -4119,6 +4119,13 @@ CONFIG_RTC_SYSTOHC_DEVICE="rtc0"
 # CONFIG_RTC_DEBUG is not set
 CONFIG_RTC_NVMEM=y
 
+
+#
+# Joystick
+#
+CONFIG_JOYSTICK_XPAD=y
+
+
 #
 # RTC interfaces
 #
