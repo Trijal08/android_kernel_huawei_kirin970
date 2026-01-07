@@ -54,7 +54,7 @@ source "drivers/hisi/mailbox/Kconfig"
 source "drivers/hisi/memory_dump/Kconfig"
 source "drivers/hisi/mntn/Kconfig"
 if HISI_INC_MODEM_CONFIG
--source "drivers/hisi/modem/Kconfig"
+source "drivers/hisi/modem/Kconfig"
 endif
 source "drivers/hisi/noc/Kconfig"
 source "drivers/hisi/perf_ctrl/Kconfig"

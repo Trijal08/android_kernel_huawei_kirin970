@@ -320,7 +320,7 @@ source "fs/ncpfs/Kconfig"
 source "fs/coda/Kconfig"
 source "fs/afs/Kconfig"
 source "fs/9p/Kconfig"
--source "fs/hmdfs/Kconfig"
+source "fs/hmdfs/Kconfig"
 
 endif # NETWORK_FILESYSTEMS
 
