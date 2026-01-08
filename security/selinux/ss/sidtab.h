@@ -51,6 +51,16 @@ union sidtab_entry_inner {
 	DIV_ROUND_UP(SIDTAB_MAX_BITS - size_to_shift(SIDTAB_LEAF_ENTRIES), \
 		     SIDTAB_INNER_SHIFT)
 
+/*
+ * Upstream SELinux uses CONFIG_SECURITY_SELINUX_SIDTAB_HASH_BITS to size the
+ * context-to-SID hashtable. Some vendor trees expect this Kconfig symbol even
+ * when it is not defined in the current configuration. Provide a reasonable
+ * default so the code still builds.
+ */
+#ifndef CONFIG_SECURITY_SELINUX_SIDTAB_HASH_BITS
+#define CONFIG_SECURITY_SELINUX_SIDTAB_HASH_BITS	7
+#endif
+
 struct sidtab_node_leaf {
 	struct sidtab_entry_leaf entries[SIDTAB_LEAF_ENTRIES];
 };

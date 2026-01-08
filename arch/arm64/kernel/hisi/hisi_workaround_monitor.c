@@ -28,6 +28,30 @@
 #include <asm/cputype.h>
 #include <bl31_smc.h>
 
+/*
+ * Some vendor trees rely on implementor/part macros and an internal PMU
+ * helper that may not exist in the base kernel. Provide conservative
+ * fallbacks so the workaround monitor can still build; if the macros are
+ * undefined we simply never detect an "enyo" core and the PMU-based
+ * monitoring stays disabled.
+ */
+#ifndef ARM_CPU_IMP_HISI
+#define ARM_CPU_IMP_HISI	0x00	/* Unknown implementor; used only for match */
+#endif
+
+#ifndef ARM_CPU_PART_ENYO
+#define ARM_CPU_PART_ENYO	0x000 /* Dummy part number; will never match */
+#endif
+
+#ifndef CONFIG_ARM_PMU
+static inline u64 armv8pmu_get_counter(struct perf_event *event)
+{
+	/* Fallback when the ARMv8 PMU driver is not present. */
+	(void)event;
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_HISI_HARDEN_BRANCH_PREDICTOR
 /*
  * the type definition of cpu is not unified in kernel,

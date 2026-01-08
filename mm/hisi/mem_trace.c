@@ -31,6 +31,15 @@
 #include <linux/hisi/hisi_ion.h>
 #endif
 
+/*
+ * Some vendor kernels add a per-zone NR_LSLAB_PAGES vmstat counter to track
+ * "lowmem slab" pages. If that counter is not present in this tree, fall
+ * back to NR_SLAB_UNRECLAIMABLE so the statistics code still compiles.
+ */
+#ifndef NR_LSLAB_PAGES
+#define NR_LSLAB_PAGES	NR_SLAB_UNRECLAIMABLE
+#endif
+
 #define pages_to_byte(pages) ((pages) << PAGE_SHIFT)
 
 static size_t get_stats_cma(void);

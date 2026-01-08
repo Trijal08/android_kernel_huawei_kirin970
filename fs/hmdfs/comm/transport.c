@@ -473,7 +473,7 @@ static bool tcp_handle_is_available(struct tcp_handle *tcp)
 #ifdef CONFIG_HMDFS_CRYPTO
 	tls_ctx = tls_get_ctx(tcp->sock->sk);
 	if (tls_ctx) {
-		ctx = tls_sw_ctx_rx(tls_ctx);
+		ctx = tls_ctx->rx;
 		if (ctx && ctx->strp.stopped) {
 			hmdfs_err(
 				"TCP conn %d is broken, the strparser has stopped",

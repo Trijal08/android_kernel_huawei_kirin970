@@ -8,6 +8,9 @@
 #ifndef _LINUX_XRECLAIMER_TYPES_H
 #define _LINUX_XRECLAIMER_TYPES_H
 
+struct task_struct;
+struct mm_struct;
+
 struct xreclaimer_mm {
 	/* Reuse page_table_lock to protect xrmm_ntasks. */
 	int			xrmm_ntasks;

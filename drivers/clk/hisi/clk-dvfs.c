@@ -196,7 +196,7 @@ static int wait_avs_complete(struct peri_dvfs_clk *dfclk)
 	if (!val) {
 		pr_err("[%s]:clk prepare wait for avs bitmask timeout, loop = %d, clk name = %s,"
 			"pmctrl 0x350 = 0x%x, 0x354 = 0x%x, SCData24 = 0x%x!\n",
-			__func__, loop, dfclk->hw.core->name, readl(pvp->addr_0), readl(pvp->addr),
+			__func__, loop, clk_hw_get_name(&dfclk->hw), readl(pvp->addr_0), readl(pvp->addr),
 			readl(dfclk->reg_base + SC_SCBAKDATA24_ADDR));
 		ret = -EINVAL;
 	}

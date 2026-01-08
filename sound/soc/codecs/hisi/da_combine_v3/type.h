@@ -33,7 +33,7 @@
 			SNDRV_PCM_FMTBIT_S24_LE | \
 			SNDRV_PCM_FMTBIT_S24_BE)
 
-#define RATES SNDRV_PCM_RATE_8000_384000
+#define RATES SNDRV_PCM_RATE_8000_192000
 
 /* res chain num */
 #define IMP_RES_NUM           8

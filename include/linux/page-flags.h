@@ -107,6 +107,19 @@ enum pageflags {
 	PG_young,
 	PG_idle,
 #endif
+	/* Huawei/HiSilicon vendor page flags (memcg LRU protect, page tracing,
+	 * zram non-compress and GPU tracking). These are imported from the
+	 * Android vendor tree and required by mm/hisi and fs/proc/hisi code.
+	 */
+	PG_protect,
+	PG_lslub,
+	PG_vmalloc,
+	PG_ion,
+	PG_skb,
+	PG_zspage,
+	PG_drv,
+	PG_non_compress,
+	PG_gpu,
 	__NR_PAGEFLAGS,
 
 	/* Filesystems */
@@ -377,6 +390,26 @@ TESTCLEARFLAG(Young, young, PF_ANY)
 PAGEFLAG(Idle, idle, PF_ANY)
 #endif
 
+/*
+ * Huawei/HiSilicon page classification flags imported from android@14,
+ * guarded by CONFIG_HISI_PAGE_TRACE so they only affect builds that
+ * enable the vendor page tracing features.
+ */
+#ifdef CONFIG_HISI_PAGE_TRACE
+PAGEFLAG(Lslub, lslub, PF_ANY)
+PAGEFLAG(Vmalloc, vmalloc, PF_ANY)
+PAGEFLAG(ION, ion, PF_ANY)
+PAGEFLAG(SKB, skb, PF_ANY)
+PAGEFLAG(Zspage, zspage, PF_ANY)
+PAGEFLAG(Drv, drv, PF_ANY)
+#endif
+
+/* Per-page bit used by MEMCG_PROTECT_LRU (fs/proc/hisi/protect_lru.c).
+ * Pages with PageProtect() set belong to a protected memcg.
+ */
+PAGEFLAG(Protect, protect, PF_ANY)
+
+PAGEFLAG(GPU, gpu, PF_ANY)
 /*
  * On an anonymous page mapped into a user virtual memory area,
  * page->mapping points to its anon_vma, not to a struct address_space;

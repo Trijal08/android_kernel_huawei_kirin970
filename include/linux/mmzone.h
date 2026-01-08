@@ -151,6 +151,21 @@ enum zone_stat_item {
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
 	NR_FREE_CMA_PAGES,
+	/*
+	 * The following counters are Huawei/HiSilicon specific extensions
+	 * imported from the android@14 branch. They are used by mm/hisi
+	 * tracking code and are only active when CONFIG_HISI_PAGE_TRACE
+	 * is enabled.
+	 */
+	NR_IONCACHE_PAGES,
+	NR_MALI_PAGES,
+	NR_SWAPCACHE,
+#ifdef CONFIG_HISI_PAGE_TRACE
+	NR_SKB_PAGES,
+	NR_VMALLOC_PAGES,
+	NR_LSLAB_PAGES,
+	NR_BUDDY_PAGES,
+#endif
 	NR_VM_ZONE_STAT_ITEMS };
 
 enum node_stat_item {

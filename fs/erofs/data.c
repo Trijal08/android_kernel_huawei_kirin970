@@ -13,6 +13,14 @@
 #include "internal.h"
 #include <linux/prefetch.h>
 
+#if defined(CONFIG_BLK_CGROUP_IOSMART) || \
+    defined(CONFIG_BLK_DEV_THROTTLING)
+struct block_device;
+
+void blk_throtl_get_quota(struct block_device *bdev, unsigned long bytes,
+                          unsigned long wait, bool for_read);
+#endif
+
 #include <trace/events/erofs.h>
 
 static inline void read_endio(struct bio *bio)

@@ -20,8 +20,10 @@ extern unsigned int sysctl_xreclaimer_enable;
 #ifdef CONFIG_SYSCTL
 extern int xreclaimer_init_sysctl(void);
 #else
-int xreclaimer_init_sysctl(void)
+static inline int xreclaimer_init_sysctl(void)
 {
+	/* No sysctl registration support; nothing to do. */
+	return 0;
 }
 #endif
 

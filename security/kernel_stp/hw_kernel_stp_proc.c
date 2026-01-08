@@ -8,6 +8,23 @@
 #include "hw_kernel_stp_proc.h"
 #ifdef CONFIG_HW_SLUB_DF
 #include <linux/slub_def.h> /* for harden double-free check */
+
+/*
+ * Some vendor trees provide set_harden_double_free_status() in the SLUB
+ * implementation. If it is missing, provide a stub so that the STP proc
+ * interface can still be built without enabling the hardening.
+ */
+#ifndef HAVE_SET_HARDEN_DOUBLE_FREE_STATUS
+static inline int set_harden_double_free_status(unsigned int param)
+{
+	/*
+	 * Treat unknown parameters as success from the caller’s perspective,
+	 * effectively disabling the hardening control but keeping the API.
+	 */
+	(void)param;
+	return 0;
+}
+#endif
 #endif
 
 #ifdef CONFIG_HHEE

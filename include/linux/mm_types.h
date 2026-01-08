@@ -17,6 +17,10 @@
 
 #include <asm/mmu.h>
 
+#ifdef CONFIG_HW_XRECLAIMER
+#include <linux/hisi/xreclaimer_types.h>
+#endif
+
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0
 #endif
@@ -516,6 +520,10 @@ struct mm_struct {
 #if IS_ENABLED(CONFIG_HMM)
 	/* HMM needs to track a few things per mm */
 	struct hmm *hmm;
+#endif
+#ifdef CONFIG_HW_XRECLAIMER
+	/* Per-mm state for Huawei xreclaimer quick-reclaim logic. */
+	struct xreclaimer_mm mm_xreclaimer;
 #endif
 } __randomize_layout;
 

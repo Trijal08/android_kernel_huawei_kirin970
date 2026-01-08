@@ -103,7 +103,7 @@ static unsigned long fast_dvfs_clk_recalc_rate(struct clk_hw *hw,
 		val >>= 1;
 	if (i >= PLL_CNT) {
 		pr_err("[%s]%s sw value is illegal,  sw_value = 0x%x, i = %d!\n",
-			__func__, hw->core->name, sw_value, i);
+			__func__, clk_hw_get_name(hw), sw_value, i);
 		return 0;
 	}
 
@@ -137,9 +137,9 @@ static int set_rate_before(struct hi3xxx_fastclk *fclk,
 		return -ENODEV;
 	}
 
-	ret = clk_core_prepare(tar_pll->core);
+	ret = clk_prepare(tar_pll);
 	if (ret) {
-		pr_err("[%s] %s clk_core_prepare fail!\n", __func__, tar_pll_name);
+		pr_err("[%s] %s clk_prepare fail!\n", __func__, tar_pll_name);
 		return -ENODEV;
 	}
 	ret = clk_enable(tar_pll);
@@ -148,9 +148,9 @@ static int set_rate_before(struct hi3xxx_fastclk *fclk,
 		goto err_tar_en;
 	}
 
-	ret = clk_core_prepare(cur_pll->core);
+	ret = clk_prepare(cur_pll);
 	if (ret) {
-		pr_err("[%s] %s clk_core_prepare fail!\n", __func__, tar_pll_name);
+		pr_err("[%s] %s clk_prepare fail!\n", __func__, tar_pll_name);
 		goto err_cur_pre;
 	}
 	ret = clk_enable(cur_pll);
@@ -161,11 +161,11 @@ static int set_rate_before(struct hi3xxx_fastclk *fclk,
 
 	return ret;
 err_cur_en:
-	clk_core_unprepare(cur_pll->core);
+	clk_unprepare(cur_pll);
 err_cur_pre:
 	clk_disable(tar_pll);
 err_tar_en:
-	clk_core_unprepare(tar_pll->core);
+	clk_unprepare(tar_pll);
 	return -ENODEV;
 }
 
@@ -193,14 +193,14 @@ static int set_rate_after(struct hi3xxx_fastclk *fclk,
 	}
 
 	clk_disable(cur_pll);
-	clk_core_unprepare(cur_pll->core);
+	clk_unprepare(cur_pll);
 
 	if (fclk->en_count) {
 		clk_disable(cur_pll);
-		clk_core_unprepare(cur_pll->core);
+		clk_unprepare(cur_pll);
 	} else {
 		clk_disable(tar_pll);
-		clk_core_unprepare(tar_pll->core);
+		clk_unprepare(tar_pll);
 	}
 
 	return 0;
@@ -215,7 +215,7 @@ static int fast_dvfs_clk_set_rate(struct clk_hw *hw,
 	int ret;
 
 	fclk = container_of(hw, struct hi3xxx_fastclk, hw);
-	cur_rate = __clk_get_rate(hw->clk);
+	cur_rate = clk_get_rate(hw->clk);
 	tar_rate = rate;
 
 	cur_level = get_rate_level(hw, cur_rate);
@@ -224,7 +224,7 @@ static int fast_dvfs_clk_set_rate(struct clk_hw *hw,
 	ret = set_rate_before(fclk, cur_level, tar_level);
 	if (ret) {
 		pr_err("[%s]%s set rate before fail,  tar_level = %d,  cur_level = %d!\n",
-			__func__, hw->core->name, tar_level, cur_level);
+			__func__, clk_hw_get_name(hw), tar_level, cur_level);
 		return -EINVAL;
 	}
 	/* Intermediate frequency div set */
@@ -242,7 +242,7 @@ static int fast_dvfs_clk_set_rate(struct clk_hw *hw,
 	ret = set_rate_after(fclk, cur_level, tar_level);
 	if (ret) {
 		pr_err("[%s]%s set rate after fail,  tar_level = %d,  cur_level = %d!\n",
-			__func__, hw->core->name, tar_level, cur_level);
+			__func__, clk_hw_get_name(hw), tar_level, cur_level);
 		ret = -EINVAL;
 	}
 
@@ -266,7 +266,7 @@ static int hi3xxx_clkfast_dvfs_enable(struct clk_hw *hw)
 		return -ENODEV;
 	}
 
-	ret = clk_core_prepare(cur_pll->core);
+	ret = clk_prepare(cur_pll);
 	if (ret) {
 		pr_err("[%s] %s clk prepare fail!\n", __func__, cur_pll_name);
 		return -ENODEV;
@@ -290,7 +290,7 @@ static int hi3xxx_clkfast_dvfs_enable(struct clk_hw *hw)
 
 	return 0;
 err_cur_en:
-	clk_core_unprepare(cur_pll->core);
+	clk_unprepare(cur_pll);
 	return -ENODEV;
 }
 
@@ -320,7 +320,7 @@ static void hi3xxx_clkfast_dvfs_disable(struct clk_hw *hw)
 			fclk->clkgt_cfg[CFG_OFFSET] + fclk->base_addr);
 
 	__clk_disable(cur_pll);
-	clk_core_unprepare(cur_pll->core);
+	clk_unprepare(cur_pll);
 
 	fclk->en_count--;
 }

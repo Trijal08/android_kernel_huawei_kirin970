@@ -191,6 +191,20 @@ static inline void *erofs_kmalloc(struct erofs_sb_info *sbi,
 #define erofs_workstn_lock(sbi)         spin_lock(&(sbi)->workstn.lock)
 #define erofs_workstn_unlock(sbi)       spin_unlock(&(sbi)->workstn.lock)
 
+#ifndef atomic_cond_read_relaxed
+#define atomic_cond_read_relaxed(v, c)                             \
+({                                                                  \
+        typeof((v)->counter) VAL;                                   \
+        for (;;) {                                                  \
+                VAL = atomic_read(v);                               \
+                if (c)                                              \
+                        break;                                      \
+                cpu_relax();                                        \
+        }                                                           \
+        VAL;                                                        \
+})
+#endif
+
 /* basic unit of the workstation of a super_block */
 struct erofs_workgroup {
 	/* the workgroup index in the workstation */
