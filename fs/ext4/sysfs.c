@@ -234,9 +234,6 @@ EXT4_ATTR_FEATURE(casefold);
 #ifdef CONFIG_FS_VERITY
 EXT4_ATTR_FEATURE(verity);
 #endif
-#ifdef CONFIG_UNICODE
-EXT4_ATTR_FEATURE(casefold);
-#endif
 EXT4_ATTR_FEATURE(metadata_csum_seed);
 #if defined(CONFIG_UNICODE) && defined(CONFIG_FS_ENCRYPTION)
 EXT4_ATTR_FEATURE(encrypted_casefold);
@@ -255,9 +252,6 @@ static struct attribute *ext4_feat_attrs[] = {
 #endif
 #ifdef CONFIG_FS_VERITY
 	ATTR_LIST(verity),
-#endif
-#ifdef CONFIG_UNICODE
-	ATTR_LIST(casefold),
 #endif
 	ATTR_LIST(metadata_csum_seed),
 #if defined(CONFIG_UNICODE) && defined(CONFIG_FS_ENCRYPTION)

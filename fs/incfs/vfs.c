@@ -163,15 +163,6 @@ static const struct file_operations incfs_log_file_ops = {
 };
 
 static const struct inode_operations incfs_file_inode_ops = {
-	.setattr = simple_setattr,
-	.getattr = simple_getattr,
-	.getxattr = incfs_getxattr,
-	.listxattr = incfs_listxattr
-};
-
-#else
-
-static const struct inode_operations incfs_file_inode_ops = {
 	.setattr = incfs_setattr,
 	.getattr = simple_getattr,
 	.listxattr = incfs_listxattr
@@ -905,8 +896,7 @@ static int init_new_file(struct mount_info *mi, struct dentry *dentry,
 	int error = 0;
 	struct backing_file_context *bfc = NULL;
 	u32 block_count;
-	struct mem_range mem_range = {NULL};
-	struct signature_info *si = NULL;
+	struct mem_range raw_signature = { NULL };
 	struct mtree *hash_tree = NULL;
 
 	if (!mi || !dentry || !uuid)
@@ -1378,7 +1368,7 @@ static long ioctl_permit_fill(struct file *f, void __user *arg)
 	struct incfs_permit_fill __user *usr_permit_fill = arg;
 	struct incfs_permit_fill permit_fill;
 	long error = 0;
-	struct file *file = 0;
+	struct file *file = NULL;
 
 	if (f->f_op != &incfs_pending_read_file_ops)
 		return -EPERM;

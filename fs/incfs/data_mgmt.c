@@ -2,14 +2,6 @@
 /*
  * Copyright 2019 Google LLC
  */
-#include <linux/gfp.h>
-#include <linux/types.h>
-#include <linux/slab.h>
-#include <linux/file.h>
-#include <linux/ktime.h>
-#include <linux/mm.h>
-#include <linux/pagemap.h>
-#include <linux/lz4.h>
 #include <linux/crc32.h>
 #include <linux/file.h>
 #include <linux/gfp.h>
@@ -272,18 +264,23 @@ static ssize_t decompress(struct mem_range src, struct mem_range dst)
 
 static void log_read_one_record(struct read_log *rl, struct read_log_state *rs)
 {
-	struct read_log *log = &mi->mi_log;
-	struct read_log_state state;
-	s64 now_us = ktime_to_us(ktime_get());
-	struct read_log_record record = {
-		.file_id = *id,
-		.block_index = block_index,
-		.timed_out = timed_out,
-		.timestamp_us = now_us
-	};
+	union log_record *record =
+		(union log_record *)((u8 *)rl->rl_ring_buf + rs->next_offset);
+	size_t record_size;
 
-	if (log->rl_size == 0)
-		return;
+	switch (record->full_record.type) {
+	case FULL:
+		rs->base_record = record->full_record;
+		record_size = sizeof(record->full_record);
+		break;
+
+	case SAME_FILE:
+		rs->base_record.block_index =
+			record->same_file_record.block_index;
+		rs->base_record.absolute_ts_us +=
+			record->same_file_record.relative_ts_us;
+		record_size = sizeof(record->same_file_record);
+		break;
 
 	case SAME_FILE_NEXT_BLOCK:
 		++rs->base_record.block_index;
@@ -308,9 +305,91 @@ static void log_read_one_record(struct read_log *rl, struct read_log_state *rs)
 	++rs->current_record_no;
 }
 
-static int validate_hash_tree(struct file *bf, struct data_file *df,
-			      int block_index, struct mem_range data,
-			      u8 *tmp_buf)
+static void log_block_read(struct mount_info *mi, incfs_uuid_t *id,
+			   int block_index)
+{
+	struct read_log *log = &mi->mi_log;
+	struct read_log_state *head, *tail;
+	s64 now_us;
+	s64 relative_us;
+	union log_record record;
+	size_t record_size;
+
+	/*
+	 * This may read the old value, but it's OK to delay the logging start
+	 * right after the configuration update.
+	 */
+	if (READ_ONCE(log->rl_size) == 0)
+		return;
+
+	now_us = ktime_to_us(ktime_get());
+
+	spin_lock(&log->rl_lock);
+	if (log->rl_size == 0) {
+		spin_unlock(&log->rl_lock);
+		return;
+	}
+
+	head = &log->rl_head;
+	tail = &log->rl_tail;
+	relative_us = now_us - head->base_record.absolute_ts_us;
+
+	if (memcmp(id, &head->base_record.file_id, sizeof(incfs_uuid_t)) ||
+	    relative_us >= 1ll << 32) {
+		record.full_record = (struct full_record){
+			.type = FULL,
+			.block_index = block_index,
+			.file_id = *id,
+			.absolute_ts_us = now_us,
+		};
+		head->base_record.file_id = *id;
+		record_size = sizeof(struct full_record);
+	} else if (block_index != head->base_record.block_index + 1 ||
+		   relative_us >= 1 << 30) {
+		record.same_file_record = (struct same_file_record){
+			.type = SAME_FILE,
+			.block_index = block_index,
+			.relative_ts_us = relative_us,
+		};
+		record_size = sizeof(struct same_file_record);
+	} else if (relative_us >= 1 << 14) {
+		record.same_file_next_block = (struct same_file_next_block){
+			.type = SAME_FILE_NEXT_BLOCK,
+			.relative_ts_us = relative_us,
+		};
+		record_size = sizeof(struct same_file_next_block);
+	} else {
+		record.same_file_next_block_short =
+			(struct same_file_next_block_short){
+				.type = SAME_FILE_NEXT_BLOCK_SHORT,
+				.relative_ts_us = relative_us,
+			};
+		record_size = sizeof(struct same_file_next_block_short);
+	}
+
+	head->base_record.block_index = block_index;
+	head->base_record.absolute_ts_us = now_us;
+
+	/* Advance tail beyond area we are going to overwrite */
+	while (tail->current_pass_no < head->current_pass_no &&
+	       tail->next_offset < head->next_offset + record_size)
+		log_read_one_record(log, tail);
+
+	memcpy(((u8 *)log->rl_ring_buf) + head->next_offset, &record,
+	       record_size);
+	head->next_offset += record_size;
+	if (head->next_offset > log->rl_size - sizeof(record)) {
+		head->next_offset = 0;
+		++head->current_pass_no;
+	}
+	++head->current_record_no;
+
+	spin_unlock(&log->rl_lock);
+	schedule_delayed_work(&log->ml_wakeup_work, msecs_to_jiffies(16));
+}
+
+static int validate_hash_tree(struct backing_file_context *bfc, struct file *f,
+			      int block_index, struct mem_range data, u8 *buf)
 {
 	struct data_file *df = get_incfs_data_file(f);
 	u8 stored_digest[INCFS_MAX_HASH_SIZE] = {};
@@ -321,7 +400,10 @@ static int validate_hash_tree(struct file *bf, struct data_file *df,
 	int hash_block_index = block_index;
 	int lvl;
 	int res;
-	struct page *saved_page = NULL;
+	loff_t hash_block_offset[INCFS_MAX_MTREE_LEVELS];
+	size_t hash_offset_in_block[INCFS_MAX_MTREE_LEVELS];
+	int hash_per_block;
+	pgoff_t file_pages;
 
 	tree = df->df_hash_tree;
 	sig = df->df_signature;
@@ -331,47 +413,52 @@ static int validate_hash_tree(struct file *bf, struct data_file *df,
 	digest_size = tree->alg->digest_size;
 	hash_per_block = INCFS_DATA_FILE_BLOCK_SIZE / digest_size;
 	for (lvl = 0; lvl < tree->depth; lvl++) {
-		loff_t lvl_off = tree->hash_level_suboffset[lvl] +
-					sig->mtree_offset;
-		loff_t hash_block_off = lvl_off +
-			round_down(hash_block_index * digest_size,
-				INCFS_DATA_FILE_BLOCK_SIZE);
-		size_t hash_off_in_block = hash_block_index * digest_size
-			% INCFS_DATA_FILE_BLOCK_SIZE;
-		struct mem_range buf_range;
-		struct page *page = NULL;
-		bool aligned = (hash_block_off &
-				(INCFS_DATA_FILE_BLOCK_SIZE - 1)) == 0;
-		u8 *actual_buf;
+		loff_t lvl_off = tree->hash_level_suboffset[lvl];
 
-		if (aligned) {
-			page = read_mapping_page(
-				bf->f_inode->i_mapping,
-				hash_block_off / INCFS_DATA_FILE_BLOCK_SIZE,
-				NULL);
+		hash_block_offset[lvl] =
+			lvl_off + round_down(hash_block_index * digest_size,
+					     INCFS_DATA_FILE_BLOCK_SIZE);
+		hash_offset_in_block[lvl] = hash_block_index * digest_size %
+					    INCFS_DATA_FILE_BLOCK_SIZE;
+		hash_block_index /= hash_per_block;
+	}
 
-			if (IS_ERR(page))
-				return PTR_ERR(page);
+	memcpy(stored_digest, tree->root_hash, digest_size);
 
-			actual_buf = page_address(page);
-		} else {
-			size_t read_res =
-				incfs_kread(bf, tmp_buf,
-					    INCFS_DATA_FILE_BLOCK_SIZE,
-					    hash_block_off);
+	file_pages = DIV_ROUND_UP(df->df_size, INCFS_DATA_FILE_BLOCK_SIZE);
+	for (lvl = tree->depth - 1; lvl >= 0; lvl--) {
+		pgoff_t hash_page =
+			file_pages +
+			hash_block_offset[lvl] / INCFS_DATA_FILE_BLOCK_SIZE;
+		struct page *page = find_get_page_flags(
+			f->f_inode->i_mapping, hash_page, FGP_ACCESSED);
 
-			if (read_res < 0)
-				return read_res;
-			if (read_res != INCFS_DATA_FILE_BLOCK_SIZE)
-				return -EIO;
+		if (page && PageChecked(page)) {
+			u8 *addr = kmap_atomic(page);
 
-			actual_buf = tmp_buf;
+			memcpy(stored_digest, addr + hash_offset_in_block[lvl],
+			       digest_size);
+			kunmap_atomic(addr);
+			put_page(page);
+			continue;
 		}
 
-		buf_range = range(actual_buf, INCFS_DATA_FILE_BLOCK_SIZE);
-		saved_digest_rng =
-			range(actual_buf + hash_off_in_block, digest_size);
-		if (!incfs_equal_ranges(calc_digest_rng, saved_digest_rng)) {
+		if (page)
+			put_page(page);
+
+		res = incfs_kread(bfc, buf, INCFS_DATA_FILE_BLOCK_SIZE,
+				  hash_block_offset[lvl] + sig->hash_offset);
+		if (res < 0)
+			return res;
+		if (res != INCFS_DATA_FILE_BLOCK_SIZE)
+			return -EIO;
+		res = incfs_calc_digest(tree->alg,
+					range(buf, INCFS_DATA_FILE_BLOCK_SIZE),
+					range(calculated_digest, digest_size));
+		if (res)
+			return res;
+
+		if (memcmp(stored_digest, calculated_digest, digest_size)) {
 			int i;
 			bool zero = true;
 
@@ -385,55 +472,34 @@ static int validate_hash_tree(struct file *bf, struct data_file *df,
 
 			if (zero)
 				pr_debug("incfs: Note saved_digest all zero - did you forget to load the hashes?\n");
-
-			if (saved_page)
-				put_page(saved_page);
-			if (page)
-				put_page(page);
 			return -EBADMSG;
 		}
 
-		if (saved_page) {
-			/*
-			 * This is something of a kludge. The PageChecked flag
-			 * is reserved for the file system, but we are setting
-			 * this on the pages belonging to the underlying file
-			 * system. incfs is only going to be used on f2fs and
-			 * ext4 which only use this flag when fs-verity is being
-			 * used, so this is safe for now, however a better
-			 * mechanism needs to be found.
-			 */
-			SetPageChecked(saved_page);
-			put_page(saved_page);
-			saved_page = NULL;
-		}
+		memcpy(stored_digest, buf + hash_offset_in_block[lvl],
+		       digest_size);
 
-		if (page && PageChecked(page)) {
+		page = grab_cache_page(f->f_inode->i_mapping, hash_page);
+		if (page) {
+			u8 *addr = kmap_atomic(page);
+
+			memcpy(addr, buf, INCFS_DATA_FILE_BLOCK_SIZE);
+			kunmap_atomic(addr);
+			SetPageChecked(page);
+			unlock_page(page);
 			put_page(page);
-			return 0;
 		}
-
-		saved_page = page;
-		page = NULL;
-
-		res = incfs_calc_digest(tree->alg, buf_range, calc_digest_rng);
-		if (res)
-			return res;
-		hash_block_index /= hash_per_block;
 	}
 
-	root_hash_rng = range(tree->root_hash, digest_size);
-	if (!incfs_equal_ranges(calc_digest_rng, root_hash_rng)) {
-		pr_debug("incfs: Root hash mismatch blk:%d\n", block_index);
-		if (saved_page)
-			put_page(saved_page);
+	res = incfs_calc_digest(tree->alg, data,
+				range(calculated_digest, digest_size));
+	if (res)
+		return res;
+
+	if (memcmp(stored_digest, calculated_digest, digest_size)) {
+		pr_debug("incfs: Leaf hash mismatch blk:%d\n", block_index);
 		return -EBADMSG;
 	}
 
-	if (saved_page) {
-		SetPageChecked(saved_page);
-		put_page(saved_page);
-	}
 	return 0;
 }
 
@@ -1297,15 +1363,10 @@ int incfs_get_uncollected_logs_count(struct mount_info *mi,
 	generation = log->rl_head.generation_id;
 	spin_unlock(&log->rl_lock);
 
-static void fill_pending_read_from_log_record(
-	struct incfs_pending_read_info *dest, const struct read_log_record *src,
-	struct read_log_state *state, u64 log_size)
-{
-	dest->file_id = src->file_id;
-	dest->block_index = src->block_index;
-	dest->serial_number =
-		state->current_pass_no * log_size + state->next_index;
-	dest->timestamp_us = src->timestamp_us;
+	if (generation != state->generation_id)
+		return head_no - tail_no;
+	else
+		return head_no - max_t(u64, tail_no, state->current_record_no);
 }
 
 int incfs_collect_logged_reads(struct mount_info *mi,

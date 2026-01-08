@@ -11,7 +11,3 @@ fscrypto-y := crypto.o \
 
 fscrypto-$(CONFIG_BLOCK) += bio.o
 fscrypto-$(CONFIG_FS_ENCRYPTION_INLINE_CRYPT) += inline_crypt.o
-
-# Huawei
-fscrypto-y += fscrypt_extra_ctrl.o
-EXTRA_CFLAGS := -I$(srctree)/lib/libc_sec/securec_v2/include

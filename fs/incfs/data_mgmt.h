@@ -20,12 +20,12 @@
 
 #define SEGMENTS_PER_FILE 3
 
-struct read_log_record {
-	u32 block_index : 31;
-
-	u32 timed_out : 1;
-
-	u64 timestamp_us;
+enum LOG_RECORD_TYPE {
+	FULL,
+	SAME_FILE,
+	SAME_FILE_NEXT_BLOCK,
+	SAME_FILE_NEXT_BLOCK_SHORT,
+};
 
 struct full_record {
 	enum LOG_RECORD_TYPE type : 2; /* FULL */
@@ -33,6 +33,29 @@ struct full_record {
 	incfs_uuid_t file_id;
 	u64 absolute_ts_us;
 } __packed; /* 28 bytes */
+
+struct same_file_record {
+	enum LOG_RECORD_TYPE type : 2; /* SAME_FILE */
+	u32 block_index : 30;
+	u32 relative_ts_us; /* max 2^32 us ~= 1 hour (1:11:30) */
+} __packed; /* 12 bytes */
+
+struct same_file_next_block {
+	enum LOG_RECORD_TYPE type : 2; /* SAME_FILE_NEXT_BLOCK */
+	u32 relative_ts_us : 30; /* max 2^30 us ~= 15 min (17:50) */
+} __packed; /* 4 bytes */
+
+struct same_file_next_block_short {
+	enum LOG_RECORD_TYPE type : 2; /* SAME_FILE_NEXT_BLOCK_SHORT */
+	u16 relative_ts_us : 14; /* max 2^14 us ~= 16 ms */
+} __packed; /* 2 bytes */
+
+union log_record {
+	struct full_record full_record;
+	struct same_file_record same_file_record;
+	struct same_file_next_block same_file_next_block;
+	struct same_file_next_block_short same_file_next_block_short;
+};
 
 struct read_log_state {
 	/* Log buffer generation id, incremented on configuration changes */
