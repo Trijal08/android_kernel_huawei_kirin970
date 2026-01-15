@@ -45,6 +45,7 @@ struct oom_control {
 };
 
 extern struct mutex oom_lock;
+extern struct mutex oom_adj_mutex;
 
 static inline void set_current_oom_origin(void)
 {
@@ -107,6 +108,10 @@ extern void exit_oom_victim(void);
 
 extern int register_oom_notifier(struct notifier_block *nb);
 extern int unregister_oom_notifier(struct notifier_block *nb);
+
+#ifdef CONFIG_OPTIMIZE_MM_AQ
+void show_oom_notifier_mem_info(void);
+#endif
 
 extern bool oom_killer_disable(signed long timeout);
 extern void oom_killer_enable(void);

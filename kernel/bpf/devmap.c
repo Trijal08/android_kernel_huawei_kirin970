@@ -123,7 +123,7 @@ static struct bpf_map *dev_map_alloc(union bpf_attr *attr)
 	if (!dtab->flush_needed)
 		goto free_dtab;
 
-	dtab->netdev_map = bpf_map_area_alloc(dtab->map.max_entries *
+	dtab->netdev_map = bpf_map_area_alloc((u64)dtab->map.max_entries *
 					      sizeof(struct bpf_dtab_netdev *),
 					      dtab->map.numa_node);
 	if (!dtab->netdev_map)
@@ -158,6 +158,9 @@ static void dev_map_free(struct bpf_map *map)
 	spin_unlock(&dev_map_lock);
 
 	synchronize_rcu();
+
+	/* Make sure prior __dev_map_entry_free() have completed. */
+	rcu_barrier();
 
 	/* To ensure all pending flush operations have completed wait for flush
 	 * bitmap to indicate all flush_needed bits to be zero on _all_ cpus.
@@ -388,8 +391,7 @@ static int dev_map_notification(struct notifier_block *notifier,
 				struct bpf_dtab_netdev *dev, *odev;
 
 				dev = READ_ONCE(dtab->netdev_map[i]);
-				if (!dev ||
-				    dev->dev->ifindex != netdev->ifindex)
+				if (!dev || netdev != dev->dev)
 					continue;
 				odev = cmpxchg(&dtab->netdev_map[i], dev, NULL);
 				if (dev == odev)

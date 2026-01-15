@@ -29,6 +29,8 @@ static struct kobj_map *cdev_map;
 
 static DEFINE_MUTEX(chrdevs_lock);
 
+DEFINE_MUTEX(evdevs_lock);
+
 #define CHRDEV_MAJOR_HASH_SIZE 255
 
 static struct char_device_struct {
@@ -159,6 +161,12 @@ __register_chrdev_region(unsigned int major, unsigned int baseminor,
 			ret = -EBUSY;
 			goto out;
 		}
+
+		if (new_min < old_min && new_max > old_max) {
+			ret = -EBUSY;
+			goto out;
+		}
+
 	}
 
 	cd->next = *cp;
@@ -355,7 +363,7 @@ static struct kobject *cdev_get(struct cdev *p)
 
 	if (owner && !try_module_get(owner))
 		return NULL;
-	kobj = kobject_get(&p->kobj);
+	kobj = kobject_get_unless_zero(&p->kobj);
 	if (!kobj)
 		module_put(owner);
 	return kobj;
@@ -380,6 +388,7 @@ static int chrdev_open(struct inode *inode, struct file *filp)
 	struct cdev *new = NULL;
 	int ret = 0;
 
+	mutex_lock(&evdevs_lock);
 	spin_lock(&cdev_lock);
 	p = inode->i_cdev;
 	if (!p) {
@@ -387,8 +396,10 @@ static int chrdev_open(struct inode *inode, struct file *filp)
 		int idx;
 		spin_unlock(&cdev_lock);
 		kobj = kobj_lookup(cdev_map, inode->i_rdev, &idx);
-		if (!kobj)
+		if (!kobj) {
+			mutex_unlock(&evdevs_lock);
 			return -ENXIO;
+		}
 		new = container_of(kobj, struct cdev, kobj);
 		spin_lock(&cdev_lock);
 		/* Check i_cdev again in case somebody beat us to it while
@@ -400,9 +411,11 @@ static int chrdev_open(struct inode *inode, struct file *filp)
 			new = NULL;
 		} else if (!cdev_get(p))
 			ret = -ENXIO;
-	} else if (!cdev_get(p))
+	} else if (!cdev_get(p)) {
 		ret = -ENXIO;
+	}
 	spin_unlock(&cdev_lock);
+	mutex_unlock(&evdevs_lock);
 	cdev_put(new);
 	if (ret)
 		return ret;

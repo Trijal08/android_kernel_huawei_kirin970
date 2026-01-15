@@ -785,6 +785,17 @@ static int hci_init4_req(struct hci_request *req, unsigned long opt)
 	if (hdev->commands[30] & 0x08)
 		hci_req_add(req, HCI_OP_GET_MWS_TRANSPORT_CONFIG, 0, NULL);
 
+#ifdef CONFIG_ARMPC_BLUEZ_DEVICE_HI110X
+	/* Write page timeout if the HCI command is supported */
+	if (hdev->commands[07] & 0x20) {
+		__le16 param;
+
+		param = cpu_to_le16(0x3000); /* 0x3000 is 7.68sec */
+		hci_req_add(req, HCI_OP_WRITE_PG_TIMEOUT,
+			    sizeof(param), &param);
+	}
+#endif
+
 	/* Check for Synchronization Train support */
 	if (lmp_sync_train_capable(hdev))
 		hci_req_add(req, HCI_OP_READ_SYNC_TRAIN_PARAMS, 0, NULL);
@@ -1456,8 +1467,13 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 	} else {
 		/* Init failed, cleanup */
 		flush_work(&hdev->tx_work);
-		flush_work(&hdev->cmd_work);
+
+		/* Since hci_rx_work() is possible to awake new cmd_work
+		 * it should be flushed first to avoid unexpected call of
+		 * hci_cmd_work()
+		 */
 		flush_work(&hdev->rx_work);
+		flush_work(&hdev->cmd_work);
 
 		skb_queue_purge(&hdev->cmd_q);
 		skb_queue_purge(&hdev->rx_q);
@@ -3365,6 +3381,29 @@ int hci_unregister_cb(struct hci_cb *cb)
 }
 EXPORT_SYMBOL(hci_unregister_cb);
 
+#ifdef CONFIG_ARMPC_BLUEZ_DEVICE_HI110X
+int hci_hisi_set_a2dp_state_cmd(struct hci_dev *hdev, u16 handle,
+				u8 state)
+{
+	u8 command[HCI_HISI_A2DP_STATE_PARAM_SIZE];
+	u8 *p;
+	u8 ret;
+	p = command;
+
+	*p = (u8)(handle);
+	p++;
+	*p = (u8)(handle >> 8); // move 8 bits
+	p++;
+	*p = (u8)(state);
+
+	ret = hci_send_cmd(hdev, HCI_OP_SET_A2DP_ACTIVE_STATE,
+			   sizeof(command), &command);
+	if (!ret)
+		return 0;
+	return -ENOMEM;
+}
+#endif
+
 static void hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	int err;
@@ -4285,3 +4324,11 @@ static void hci_cmd_work(struct work_struct *work)
 		}
 	}
 }
+
+#ifdef CONFIG_ARMPC_BLUEZ_DEVICE_HI110X
+int hisi_hci_dev_do_open(struct hci_dev *hdev)
+{
+	int ret = hci_dev_do_open(hdev);
+	return ret;
+}
+#endif

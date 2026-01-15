@@ -36,4 +36,6 @@ void cdev_del(struct cdev *);
 
 void cd_forget(struct inode *);
 
+extern struct mutex evdevs_lock;
+
 #endif

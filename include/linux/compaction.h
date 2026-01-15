@@ -93,9 +93,16 @@ extern int sysctl_extfrag_handler(struct ctl_table *table, int write,
 extern int sysctl_compact_unevictable_allowed;
 
 extern int fragmentation_index(struct zone *zone, unsigned int order);
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 extern enum compact_result try_to_compact_pages(gfp_t gfp_mask,
 		unsigned int order, unsigned int alloc_flags,
 		const struct alloc_context *ac, enum compact_priority prio);
+#else
+extern enum compact_result try_to_compact_pages(gfp_t gfp_mask,
+		unsigned int order, unsigned int alloc_flags,
+		const struct alloc_context *ac, enum compact_priority prio,
+		struct page **page);
+#endif
 extern void reset_isolation_suitable(pg_data_t *pgdat);
 extern enum compact_result compaction_suitable(struct zone *zone, int order,
 		unsigned int alloc_flags, int classzone_idx);
@@ -130,6 +137,7 @@ static inline bool compaction_failed(enum compact_result result)
 	return false;
 }
 
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 /*
  * Compaction  has backed off for some reason. It might be throttling or
  * lock contention. Retrying is still worthwhile.
@@ -169,6 +177,54 @@ static inline bool compaction_withdrawn(enum compact_result result)
 
 	return false;
 }
+#else
+/* Compaction needs reclaim to be performed first, so it can continue. */
+static inline bool compaction_needs_reclaim(enum compact_result result)
+{
+	/*
+	 * Compaction backed off due to watermark checks for order-0
+	 * so the regular reclaim has to try harder and reclaim something.
+	 */
+	if (result == COMPACT_SKIPPED)
+		return true;
+
+	return false;
+}
+
+/*
+ * Compaction has backed off for some reason after doing some work or none
+ * at all. It might be throttling or lock contention. Retrying might be still
+ * worthwhile, but with a higher priority if allowed.
+ */
+static inline bool compaction_withdrawn(enum compact_result result)
+{
+	/*
+	 * If compaction is deferred for high-order allocations, it is
+	 * because sync compaction recently failed. If this is the case
+	 * and the caller requested a THP allocation, we do not want
+	 * to heavily disrupt the system, so we fail the allocation
+	 * instead of entering direct reclaim.
+	 */
+	if (result == COMPACT_DEFERRED)
+		return true;
+
+	/*
+	 * If compaction in async mode encounters contention or blocks higher
+	 * priority task we back off early rather than cause stalls.
+	 */
+	if (result == COMPACT_CONTENDED)
+		return true;
+
+	/*
+	 * Page scanners have met but we haven't scanned full zones so this
+	 * is a back off in fact.
+	 */
+	if (result == COMPACT_PARTIAL_SKIPPED)
+		return true;
+
+	return false;
+}
+#endif
 
 
 bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
@@ -208,6 +264,13 @@ static inline bool compaction_failed(enum compact_result result)
 	return false;
 }
 
+#ifdef CONFIG_HARMONY_PERFORMANCE_AQ
+static inline bool compaction_needs_reclaim(enum compact_result result)
+{
+	return false;
+}
+#endif
+
 static inline bool compaction_withdrawn(enum compact_result result)
 {
 	return true;
@@ -243,5 +306,9 @@ static inline void compaction_unregister_node(struct node *node)
 {
 }
 #endif /* CONFIG_COMPACTION && CONFIG_SYSFS && CONFIG_NUMA */
+
+#if defined(CONFIG_COMPACTION) && defined(CONFIG_ION_HISI_CPA)
+void cpa_compact_nodes(int compact_model, int order, unsigned long nrpages);
+#endif
 
 #endif /* _LINUX_COMPACTION_H */

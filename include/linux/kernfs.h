@@ -145,6 +145,10 @@ struct kernfs_node {
 
 	const void		*ns;	/* namespace tag */
 	unsigned int		hash;	/* ns + name hash */
+#ifdef CONFIG_OPTIMIZE_MM_AQ
+	unsigned short		flags;
+	umode_t			mode;
+#endif
 	union {
 		struct kernfs_elem_dir		dir;
 		struct kernfs_elem_symlink	symlink;
@@ -154,8 +158,10 @@ struct kernfs_node {
 	void			*priv;
 
 	union kernfs_node_id	id;
+#ifndef CONFIG_OPTIMIZE_MM_AQ
 	unsigned short		flags;
 	umode_t			mode;
+#endif
 	struct kernfs_iattrs	*iattr;
 };
 

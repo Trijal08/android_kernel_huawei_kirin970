@@ -228,7 +228,7 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	if (ver != QRTR_PROTO_VER)
 		return -EINVAL;
 
-	if (len != psize + QRTR_HDR_SIZE)
+	if (!size || len != psize + QRTR_HDR_SIZE)
 		return -EINVAL;
 
 	if (dst != QRTR_PORT_CTRL && type != QRTR_TYPE_DATA)

@@ -166,7 +166,8 @@ static struct tty_buffer *tty_buffer_alloc(struct tty_port *port, size_t size)
 	   have queued and recycle that ? */
 	if (atomic_read(&port->buf.mem_used) > port->buf.mem_limit)
 		return NULL;
-	p = kmalloc(sizeof(struct tty_buffer) + 2 * size, GFP_ATOMIC);
+	p = kmalloc(sizeof(struct tty_buffer) + 2 * size,
+		    GFP_ATOMIC | __GFP_NOWARN);
 	if (p == NULL)
 		return NULL;
 
@@ -399,11 +400,14 @@ EXPORT_SYMBOL(__tty_insert_flip_char);
 void tty_schedule_flip(struct tty_port *port)
 {
 	struct tty_bufhead *buf = &port->buf;
+	unsigned long flags;
 
 	/* paired w/ acquire in flush_to_ldisc(); ensures
 	 * flush_to_ldisc() sees buffer data.
 	 */
+	spin_lock_irqsave(&port->lock, flags);
 	smp_store_release(&buf->tail->commit, buf->tail->used);
+	spin_unlock_irqrestore(&port->lock, flags);
 	queue_work(system_unbound_wq, &buf->work);
 }
 EXPORT_SYMBOL(tty_schedule_flip);

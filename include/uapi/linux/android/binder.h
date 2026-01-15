@@ -242,6 +242,37 @@ struct binder_version {
 #define BINDER_CURRENT_PROTOCOL_VERSION 8
 #endif
 
+#ifdef CONFIG_HW_BINDER_SCHED
+#define MAX_BG_WAITING_TIME_NS 1000000000  /* bg max waiting time(ns) */
+#define MAX_CHECK_TIMEOUT_TIME_NS 100000000 /* bg timeout check(ns) */
+#define MIN_APPLICATION_UID 10000 /* min uid to conrtrol */
+#define SYSTEM_UID 1000 /* system uid */
+#define AID_USER_OFFSET 100000 /* offset for uid ranges for each user */
+#define APP_IS_FG 1
+#define APP_IS_BG 0
+#define BINDER_SCHED_DEFAULT_QOS (-1)
+#define BG_THREAD_ID_0 2 /* the request id of bg thread */
+
+#define BINDER_CMD_LOCKOPT_REPORT_SCENE _IOW('b', 111, struct binder_sched_args)
+
+enum {
+	BINDER_LOOPER_STATE_BG          = 0x01,
+	BINDER_LOOPER_STATE_FG          = 0x02,
+};
+enum {
+	BINDER_CTL_SCENE_FG_CHANGED          = 0x01,
+	BINDER_CTL_SCENE_SET_DEBUG_SWITCH    = 0x02,
+	BINDER_CTL_SCENE_ANR_CHANGED         = 0x03,
+	BINDER_CTL_SCENE_SCHED_SWITCH        = 0X04,
+};
+
+struct binder_sched_args {
+	int scene;
+	int  id;
+	int status;
+};
+#endif
+
 /*
  * Use with BINDER_GET_NODE_DEBUG_INFO, driver reads ptr, writes to all fields.
  * Set ptr to NULL for the first call to get the info for the first node, and
@@ -272,7 +303,7 @@ struct binder_node_info_for_ref {
 #define BINDER_THREAD_EXIT		_IOW('b', 8, __s32)
 #define BINDER_VERSION			_IOWR('b', 9, struct binder_version)
 #define BINDER_GET_NODE_DEBUG_INFO	_IOWR('b', 11, struct binder_node_debug_info)
-#define BINDER_GET_NODE_INFO_FOR_REF	_IOWR('b', 12, struct binder_node_info_for_ref)
+#define BINDER_GET_NODE_INFO_FOR_REF    _IOWR('b', 12, struct binder_node_info_for_ref)
 #define BINDER_SET_CONTEXT_MGR_EXT	_IOW('b', 13, struct flat_binder_object)
 
 /*
@@ -454,6 +485,11 @@ enum binder_driver_return_protocol {
 	 * The the last transaction (either a bcTRANSACTION or
 	 * a bcATTEMPT_ACQUIRE) failed (e.g. out of memory).  No parameters.
 	 */
+
+	 BR_TRANSLATION_COMPLETE = _IOR('r', 20, __u32),
+	/*
+	 * No parameters... always refers to the last translation requested
+	 */
 };
 
 enum binder_driver_command_protocol {
@@ -537,7 +573,12 @@ enum binder_driver_command_protocol {
 	/*
 	 * binder_transaction_data_sg: the sent command.
 	 */
+
+	BC_TRANSLATION = _IOW('c', 21, struct flat_binder_object),
 };
 
+#ifdef CONFIG_HUAWEI_KSTATE
+bool check_binder_calling_work(int calledPid);
+#endif /* CONFIG_HUAWEI_KSTATE */
 #endif /* _UAPI_LINUX_BINDER_H */
 

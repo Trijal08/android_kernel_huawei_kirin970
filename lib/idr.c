@@ -171,7 +171,11 @@ void *idr_replace_ext(struct idr *idr, void *ptr, unsigned long id)
 	if (!slot || radix_tree_tag_get(&idr->idr_rt, id, IDR_FREE))
 		return ERR_PTR(-ENOENT);
 
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 	__radix_tree_replace(&idr->idr_rt, node, slot, ptr, NULL, NULL);
+#else
+	__radix_tree_replace(&idr->idr_rt, node, slot, ptr, NULL);
+#endif
 
 	return entry;
 }

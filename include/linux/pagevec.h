@@ -17,8 +17,16 @@ struct address_space;
 
 struct pagevec {
 	unsigned long nr;
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 	unsigned long cold;
+#else
+	bool cold;
+	bool drained;
+#endif
 	struct page *pages[PAGEVEC_SIZE];
+#ifdef CONFIG_TASK_PROTECT_LRU
+	bool lru_head;
+#endif
 };
 
 void __pagevec_release(struct pagevec *pvec);
@@ -54,6 +62,9 @@ static inline void pagevec_init(struct pagevec *pvec, int cold)
 {
 	pvec->nr = 0;
 	pvec->cold = cold;
+#ifdef CONFIG_HARMONY_PERFORMANCE_AQ
+	pvec->drained = false;
+#endif
 }
 
 static inline void pagevec_reinit(struct pagevec *pvec)

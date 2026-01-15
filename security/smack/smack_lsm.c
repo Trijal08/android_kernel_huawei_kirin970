@@ -2050,6 +2050,23 @@ static void smack_cred_transfer(struct cred *new, const struct cred *old)
 }
 
 /**
+ * smack_cred_getsecid - get the secid corresponding to a creds structure
+ * @c: the object creds
+ * @secid: where to put the result
+ *
+ * Sets the secid to contain a u32 version of the smack label.
+ */
+static void smack_cred_getsecid(const struct cred *c, u32 *secid)
+{
+	struct smack_known *skp;
+
+	rcu_read_lock();
+	skp = smk_of_task(c->security);
+	*secid = skp->smk_secid;
+	rcu_read_unlock();
+}
+
+/**
  * smack_kernel_act_as - Set the subjective context in a set of credentials
  * @new: points to the set of credentials to be modified.
  * @secid: specifies the security ID to be set
@@ -3960,19 +3977,15 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	struct smack_known *skp = NULL;
 	int rc = 0;
 	struct smk_audit_info ad;
-	u16 family = sk->sk_family;
 #ifdef CONFIG_AUDIT
 	struct lsm_network_audit net;
 #endif
 #if IS_ENABLED(CONFIG_IPV6)
 	struct sockaddr_in6 sadd;
 	int proto;
-
-	if (family == PF_INET6 && skb->protocol == htons(ETH_P_IP))
-		family = PF_INET;
 #endif /* CONFIG_IPV6 */
 
-	switch (family) {
+	switch (sk->sk_family) {
 	case PF_INET:
 #ifdef CONFIG_SECURITY_SMACK_NETFILTER
 		/*
@@ -3990,7 +4003,7 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 		 */
 		netlbl_secattr_init(&secattr);
 
-		rc = netlbl_skbuff_getattr(skb, family, &secattr);
+		rc = netlbl_skbuff_getattr(skb, sk->sk_family, &secattr);
 		if (rc == 0)
 			skp = smack_from_secattr(&secattr, ssp);
 		else
@@ -4003,7 +4016,7 @@ access_check:
 #endif
 #ifdef CONFIG_AUDIT
 		smk_ad_init_net(&ad, __func__, LSM_AUDIT_DATA_NET, &net);
-		ad.a.u.net->family = family;
+		ad.a.u.net->family = sk->sk_family;
 		ad.a.u.net->netif = skb->skb_iif;
 		ipv4_skb_to_auditdata(skb, &ad.a, NULL);
 #endif
@@ -4017,7 +4030,7 @@ access_check:
 		rc = smk_bu_note("IPv4 delivery", skp, ssp->smk_in,
 					MAY_WRITE, rc);
 		if (rc != 0)
-			netlbl_skbuff_err(skb, family, rc, 0);
+			netlbl_skbuff_err(skb, sk->sk_family, rc, 0);
 		break;
 #if IS_ENABLED(CONFIG_IPV6)
 	case PF_INET6:
@@ -4033,7 +4046,7 @@ access_check:
 			skp = smack_net_ambient;
 #ifdef CONFIG_AUDIT
 		smk_ad_init_net(&ad, __func__, LSM_AUDIT_DATA_NET, &net);
-		ad.a.u.net->family = family;
+		ad.a.u.net->family = sk->sk_family;
 		ad.a.u.net->netif = skb->skb_iif;
 		ipv6_skb_to_auditdata(skb, &ad.a, NULL);
 #endif /* CONFIG_AUDIT */
@@ -4356,12 +4369,6 @@ static int smack_key_permission(key_ref_t key_ref,
 	int request = 0;
 	int rc;
 
-	/*
-	 * Validate requested permissions
-	 */
-	if (perm & ~KEY_NEED_ALL)
-		return -EINVAL;
-
 	keyp = key_ref_to_ptr(key_ref);
 	if (keyp == NULL)
 		return -EINVAL;
@@ -4381,10 +4388,10 @@ static int smack_key_permission(key_ref_t key_ref,
 	ad.a.u.key_struct.key = keyp->serial;
 	ad.a.u.key_struct.key_desc = keyp->description;
 #endif
-	if (perm & (KEY_NEED_READ | KEY_NEED_SEARCH | KEY_NEED_VIEW))
-		request |= MAY_READ;
+	if (perm & KEY_NEED_READ)
+		request = MAY_READ;
 	if (perm & (KEY_NEED_WRITE | KEY_NEED_LINK | KEY_NEED_SETATTR))
-		request |= MAY_WRITE;
+		request = MAY_WRITE;
 	rc = smk_access(tkp, keyp->security, request, &ad);
 	rc = smk_bu_note("key access", tkp, keyp->security, request, rc);
 	return rc;
@@ -4662,6 +4669,7 @@ static struct security_hook_list smack_hooks[] __lsm_ro_after_init = {
 	LSM_HOOK_INIT(cred_free, smack_cred_free),
 	LSM_HOOK_INIT(cred_prepare, smack_cred_prepare),
 	LSM_HOOK_INIT(cred_transfer, smack_cred_transfer),
+	LSM_HOOK_INIT(cred_getsecid, smack_cred_getsecid),
 	LSM_HOOK_INIT(kernel_act_as, smack_kernel_act_as),
 	LSM_HOOK_INIT(kernel_create_files_as, smack_kernel_create_files_as),
 	LSM_HOOK_INIT(task_setpgid, smack_task_setpgid),

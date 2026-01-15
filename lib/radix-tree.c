@@ -677,8 +677,12 @@ out:
  *	@root		radix tree root
  */
 static inline bool radix_tree_shrink(struct radix_tree_root *root,
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 				     radix_tree_update_node_t update_node,
 				     void *private)
+#else
+				     radix_tree_update_node_t update_node)
+#endif
 {
 	bool shrunk = false;
 
@@ -739,7 +743,11 @@ static inline bool radix_tree_shrink(struct radix_tree_root *root,
 		if (!radix_tree_is_internal_node(child)) {
 			node->slots[0] = (void __rcu *)RADIX_TREE_RETRY;
 			if (update_node)
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 				update_node(node, private);
+#else
+				update_node(node);
+#endif
 		}
 
 		WARN_ON_ONCE(!list_empty(&node->private_list));
@@ -752,7 +760,11 @@ static inline bool radix_tree_shrink(struct radix_tree_root *root,
 
 static bool delete_node(struct radix_tree_root *root,
 			struct radix_tree_node *node,
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 			radix_tree_update_node_t update_node, void *private)
+#else
+			radix_tree_update_node_t update_node)
+#endif
 {
 	bool deleted = false;
 
@@ -762,8 +774,12 @@ static bool delete_node(struct radix_tree_root *root,
 		if (node->count) {
 			if (node_to_entry(node) ==
 					rcu_dereference_raw(root->rnode))
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 				deleted |= radix_tree_shrink(root, update_node,
 								private);
+#else
+				deleted |= radix_tree_shrink(root, update_node);
+#endif
 			return deleted;
 		}
 
@@ -1181,7 +1197,11 @@ static int calculate_count(struct radix_tree_root *root,
 void __radix_tree_replace(struct radix_tree_root *root,
 			  struct radix_tree_node *node,
 			  void __rcu **slot, void *item,
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 			  radix_tree_update_node_t update_node, void *private)
+#else
+			  radix_tree_update_node_t update_node)
+#endif
 {
 	void *old = rcu_dereference_raw(*slot);
 	int exceptional = !!radix_tree_exceptional_entry(item) -
@@ -1201,9 +1221,15 @@ void __radix_tree_replace(struct radix_tree_root *root,
 		return;
 
 	if (update_node)
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 		update_node(node, private);
 
 	delete_node(root, node, update_node, private);
+#else
+		update_node(node);
+
+	delete_node(root, node, update_node);
+#endif
 }
 
 /**
@@ -1225,7 +1251,11 @@ void __radix_tree_replace(struct radix_tree_root *root,
 void radix_tree_replace_slot(struct radix_tree_root *root,
 			     void __rcu **slot, void *item)
 {
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 	__radix_tree_replace(root, NULL, slot, item, NULL, NULL);
+#else
+	__radix_tree_replace(root, NULL, slot, item, NULL);
+#endif
 }
 EXPORT_SYMBOL(radix_tree_replace_slot);
 
@@ -1242,7 +1272,11 @@ void radix_tree_iter_replace(struct radix_tree_root *root,
 				const struct radix_tree_iter *iter,
 				void __rcu **slot, void *item)
 {
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 	__radix_tree_replace(root, iter->node, slot, item, NULL, NULL);
+#else
+	__radix_tree_replace(root, iter->node, slot, item, NULL);
+#endif
 }
 
 #ifdef CONFIG_RADIX_TREE_MULTIORDER
@@ -1976,6 +2010,7 @@ EXPORT_SYMBOL(radix_tree_gang_lookup_tag_slot);
  *	rooted at @root, call this function to attempt freeing the
  *	node and shrinking the tree.
  */
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 void __radix_tree_delete_node(struct radix_tree_root *root,
 			      struct radix_tree_node *node,
 			      radix_tree_update_node_t update_node,
@@ -1983,6 +2018,14 @@ void __radix_tree_delete_node(struct radix_tree_root *root,
 {
 	delete_node(root, node, update_node, private);
 }
+#else
+void __radix_tree_delete_node(struct radix_tree_root *root,
+			      struct radix_tree_node *node,
+			      radix_tree_update_node_t update_node)
+{
+	delete_node(root, node, update_node);
+}
+#endif
 
 static bool __radix_tree_delete(struct radix_tree_root *root,
 				struct radix_tree_node *node, void __rcu **slot)
@@ -1999,7 +2042,11 @@ static bool __radix_tree_delete(struct radix_tree_root *root,
 			node_tag_clear(root, node, tag, offset);
 
 	replace_slot(slot, NULL, node, -1, exceptional);
+#ifndef CONFIG_HARMONY_PERFORMANCE_AQ
 	return node && delete_node(root, node, NULL, NULL);
+#else
+	return node && delete_node(root, node, NULL);
+#endif
 }
 
 /**

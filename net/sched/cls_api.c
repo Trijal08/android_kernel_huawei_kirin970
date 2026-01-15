@@ -318,6 +318,7 @@ EXPORT_SYMBOL(tcf_block_put);
 int tcf_classify(struct sk_buff *skb, const struct tcf_proto *tp,
 		 struct tcf_result *res, bool compat_mode)
 {
+	__be16 protocol = tc_skb_protocol(skb);
 #ifdef CONFIG_NET_CLS_ACT
 	const int max_reclassify_loop = 4;
 	const struct tcf_proto *orig_tp = tp;
@@ -327,7 +328,6 @@ int tcf_classify(struct sk_buff *skb, const struct tcf_proto *tp,
 reclassify:
 #endif
 	for (; tp; tp = rcu_dereference_bh(tp->next)) {
-		__be16 protocol = tc_skb_protocol(skb);
 		int err;
 
 		if (tp->protocol != protocol &&
@@ -359,6 +359,7 @@ reset:
 	}
 
 	tp = first_tp;
+	protocol = tc_skb_protocol(skb);
 	goto reclassify;
 #endif
 }
@@ -544,7 +545,7 @@ static int tc_ctl_tfilter(struct sk_buff *skb, struct nlmsghdr *n,
 	struct net_device *dev;
 	struct Qdisc  *q;
 	struct tcf_chain_info chain_info;
-	struct tcf_chain *chain = NULL;
+	struct tcf_chain *chain;
 	struct tcf_block *block;
 	struct tcf_proto *tp;
 	const struct Qdisc_class_ops *cops;
@@ -570,6 +571,8 @@ replay:
 	prio_allocate = false;
 	parent = t->tcm_parent;
 	cl = 0;
+	q = NULL;
+	chain = NULL;
 
 	if (prio == 0) {
 		switch (n->nlmsg_type) {

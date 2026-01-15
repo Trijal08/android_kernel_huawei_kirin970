@@ -359,7 +359,6 @@ static int evdev_flush(struct file *file, fl_owner_t id)
 static void evdev_free(struct device *dev)
 {
 	struct evdev *evdev = container_of(dev, struct evdev, dev);
-
 	input_put_device(evdev->handle.dev);
 	kfree(evdev);
 }
@@ -1372,7 +1371,6 @@ static int evdev_connect(struct input_handler *handler, struct input_dev *dev,
 	int minor;
 	int dev_no;
 	int error;
-
 	minor = input_get_new_minor(EVDEV_MINOR_BASE, EVDEV_MINORS, true);
 	if (minor < 0) {
 		error = minor;
@@ -1408,7 +1406,6 @@ static int evdev_connect(struct input_handler *handler, struct input_dev *dev,
 	evdev->dev.parent = &dev->dev;
 	evdev->dev.release = evdev_free;
 	device_initialize(&evdev->dev);
-
 	error = input_register_handle(&evdev->handle);
 	if (error)
 		goto err_free_evdev;
@@ -1434,12 +1431,13 @@ static int evdev_connect(struct input_handler *handler, struct input_dev *dev,
 static void evdev_disconnect(struct input_handle *handle)
 {
 	struct evdev *evdev = handle->private;
-
+	mutex_lock(&evdevs_lock);
 	cdev_device_del(&evdev->cdev, &evdev->dev);
 	evdev_cleanup(evdev);
 	input_free_minor(MINOR(evdev->dev.devt));
 	input_unregister_handle(handle);
 	put_device(&evdev->dev);
+	mutex_unlock(&evdevs_lock);
 }
 
 static const struct input_device_id evdev_ids[] = {

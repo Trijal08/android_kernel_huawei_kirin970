@@ -64,11 +64,19 @@ struct mutex {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lockdep_map	dep_map;
 #endif
+#if defined(CONFIG_HW_VIP_THREAD) && !defined(CONFIG_OPTIMIZE_MM_AQ)
+	struct task_struct *vip_dep_task;
+#endif
+
 };
 
 static inline struct task_struct *__mutex_owner(struct mutex *lock)
 {
+#if defined(CONFIG_HW_VIP_THREAD) && defined(CONFIG_OPTIMIZE_MM_AQ)
+	return (struct task_struct *)(atomic_long_read(&lock->owner) & ~0x0f);
+#else
 	return (struct task_struct *)(atomic_long_read(&lock->owner) & ~0x07);
+#endif
 }
 
 /*
@@ -121,12 +129,22 @@ do {									\
 # define __DEP_MAP_MUTEX_INITIALIZER(lockname)
 #endif
 
+#if defined(CONFIG_HW_VIP_THREAD) && !defined(CONFIG_OPTIMIZE_MM_AQ)
+#define __MUTEX_INITIALIZER(lockname) \
+		{ .owner = ATOMIC_LONG_INIT(0) \
+		, .wait_lock = __SPIN_LOCK_UNLOCKED(lockname.wait_lock) \
+		, .wait_list = LIST_HEAD_INIT(lockname.wait_list) \
+		, .vip_dep_task = NULL \
+		__DEBUG_MUTEX_INITIALIZER(lockname) \
+		__DEP_MAP_MUTEX_INITIALIZER(lockname) }
+#else
 #define __MUTEX_INITIALIZER(lockname) \
 		{ .owner = ATOMIC_LONG_INIT(0) \
 		, .wait_lock = __SPIN_LOCK_UNLOCKED(lockname.wait_lock) \
 		, .wait_list = LIST_HEAD_INIT(lockname.wait_list) \
 		__DEBUG_MUTEX_INITIALIZER(lockname) \
 		__DEP_MAP_MUTEX_INITIALIZER(lockname) }
+#endif
 
 #define DEFINE_MUTEX(mutexname) \
 	struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
@@ -227,5 +245,4 @@ mutex_trylock_recursive(struct mutex *lock)
 
 	return mutex_trylock(lock);
 }
-
 #endif /* __LINUX_MUTEX_H */

@@ -1446,6 +1446,11 @@ static int uvc_scan_chain_forward(struct uvc_video_chain *chain,
 			break;
 		if (forward == prev)
 			continue;
+		if (forward->chain.next || forward->chain.prev) {
+			uvc_trace(UVC_TRACE_DESCR, "Found reference to "
+				"entity %d already in chain.\n", forward->id);
+			return -EINVAL;
+		}
 
 		switch (UVC_ENTITY_TYPE(forward)) {
 		case UVC_VC_EXTENSION_UNIT:
@@ -1525,6 +1530,13 @@ static int uvc_scan_chain_backward(struct uvc_video_chain *chain,
 					"input %d isn't connected to an "
 					"input terminal\n", entity->id, i);
 				return -1;
+			}
+
+			if (term->chain.next || term->chain.prev) {
+				uvc_trace(UVC_TRACE_DESCR, "Found reference to "
+					"entity %d already in chain.\n",
+					term->id);
+				return -EINVAL;
 			}
 
 			if (uvc_trace_param & UVC_TRACE_PROBE)
@@ -1821,11 +1833,7 @@ static void uvc_delete(struct kref *kref)
 	usb_put_intf(dev->intf);
 	usb_put_dev(dev->udev);
 
-	if (dev->vdev.dev)
-		v4l2_device_unregister(&dev->vdev);
 #ifdef CONFIG_MEDIA_CONTROLLER
-	if (media_devnode_is_registered(dev->mdev.devnode))
-		media_device_unregister(&dev->mdev);
 	media_device_cleanup(&dev->mdev);
 #endif
 
@@ -1847,6 +1855,8 @@ static void uvc_delete(struct kref *kref)
 	list_for_each_safe(p, n, &dev->streams) {
 		struct uvc_streaming *streaming;
 		streaming = list_entry(p, struct uvc_streaming, list);
+		/* delete usb notify last by irq control */
+		usb_unregister_notify(&streaming->nb);
 		usb_driver_release_interface(&uvc_driver.driver,
 			streaming->intf);
 		usb_put_intf(streaming->intf);
@@ -1881,6 +1891,33 @@ static void uvc_unregister_video(struct uvc_device *dev)
 
 		uvc_debugfs_cleanup_stream(stream);
 	}
+
+	uvc_status_unregister(dev);
+	if (dev->vdev.dev)
+		v4l2_device_unregister(&dev->vdev);
+#ifdef CONFIG_MEDIA_CONTROLLER
+	if (media_devnode_is_registered(dev->mdev.devnode))
+		media_device_unregister(&dev->mdev);
+#endif
+
+}
+
+static int uvc_dev_notify(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	struct uvc_streaming *stream =
+		container_of(nb, struct uvc_streaming, nb);
+
+	switch (action) {
+	case USB_BUS_ADD:
+		break;
+	case USB_BUS_REMOVE:
+		/* give back all buffers to HAL while USB disconnected */
+		uvc_queue_cancel(&stream->queue, 1);
+		printk(KERN_INFO "uvc disconnected:%s\n", __func__);
+		break;
+	}
+	return NOTIFY_OK;
 }
 
 static int uvc_register_video(struct uvc_device *dev,
@@ -1937,6 +1974,9 @@ static int uvc_register_video(struct uvc_device *dev,
 		stream->chain->caps |= V4L2_CAP_VIDEO_CAPTURE;
 	else
 		stream->chain->caps |= V4L2_CAP_VIDEO_OUTPUT;
+
+	stream->nb.notifier_call = uvc_dev_notify;
+	usb_register_notify(&stream->nb);
 
 	kref_get(&dev->ref);
 	return 0;
